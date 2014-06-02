@@ -23,6 +23,10 @@ class FlowCalculation:
         return ''.join([self.layout, '_', self.alphas, '_', self.capacities,
                         '_', self.solvermode])
 
+    def copy(self):
+        return FlowCalculation(self.layout, self.alphas, self.capacities,\
+                                self.solvermode)
+
     def label(self, variationparameter):
         """ Returns a string that can be used to label a curve
             in a histgram that plots with different values of
