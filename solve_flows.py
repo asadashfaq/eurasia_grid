@@ -4,7 +4,9 @@ import multiprocessing as mp
 
 import aurespf.solvers as au
 from worldgrid import world_Nodes
+from nhgrid import nh_Nodes
 from FlowCalculation import FlowCalculation # my own class for passing info about calculations
+from FCResult import FCResult # my class for storing results in a space-efficient way
 
 def solve_flow(flow_calc):
     admat = ''.join(['./settings/', flow_calc.layout, 'admat.txt'])
@@ -13,11 +15,29 @@ def solve_flow(flow_calc):
         flow_calc.alphas, '_copper_', flow_calc.solvermode, '_flows.npy'])
 
     if flow_calc.alphas=='aHE':
-        nodes = world_Nodes(admat=admat)
+        if flow_calc.basisnetwork == 'w':
+            nodes = world_Nodes(admat=admat)
+        if flow_calc.basisnetwork == 'nh':
+            nodes = nh_Nodes(admat=admat)
+        else:
+            sys.stderr.write('The object has a basisnetwork that\
+                          is not accounted for. Use "w" or "nh".')
     elif flow_calc.alphas=='aHO0':
-        nodes = world_Nodes(admat=admat, alphas=np.zeros(8))
+        if flow_calc.basisnetwork == 'w':
+            nodes = world_Nodes(admat=admat, alphas=np.zeros(8))
+        if flow_calc.basisnetwork == 'nh':
+            nodes = nh_Nodes(admat=admat, alphas=np.zeros(9))
+        else:
+            sys.stderr.write('The object has a basisnetwork that\
+                          is not accounted for. Use "w" or "nh".')
     elif flow_calc.alphas=='aHO1':
-        nodes = world_Nodes(admat=admat, alphas=np.ones(8))
+        if flow_calc.basisnetwork == 'w':
+            nodes = world_Nodes(admat=admat, alphas=np.ones(8))
+        if flow_calc.basisnetwork == 'nh':
+            nodes = nh_Nodes(admat=admat, alphas=np.ones(9))
+        else:
+            sys.stderr.write('The object has a basisnetwork that\
+                          is not accounted for. Use "w" or "nh".')
     else:
         sys.stderr.write('The object has an distribution of mixes that\
                           is not accounted for.')
@@ -62,11 +82,17 @@ def solve_flow(flow_calc):
         sys.stderr.write('The capacities must be either "copper", "q99",\
                             "hq99", or on the form "<number>q99"')
 
-    solved_nodes.save_nodes(filename)
-    print filename
-    try:
-        flows
-    except NameError:
-        print "Flows not defined."
-    np.save('./results/' + filename + '_flows', flows)
+    if flow_calc.savemode == 'full':
+        solved_nodes.save_nodes(filename)
+        print filename
+        try:
+            flows
+        except NameError:
+            print "Flows not defined."
+        np.save('./results/' + filename + '_flows', flows)
+
+    if flow_calc.savemode == 'FCResult':
+        result = FCResult(filename+'.pkl')
+        result.add_instance(solved_nodes, flows, flow_calc)
+        result.save_results(filename+'.pkl')
 

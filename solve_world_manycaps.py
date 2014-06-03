@@ -10,7 +10,7 @@ fc_list = []
 
 for m in modes:
     for c in capacities:
-        fc_list.append(fc.FlowCalculation('w', 'aHE', c, m))
+        fc_list.append(fc.FlowCalculation('w', 'aHE', c, m, basisnetwork='w'))
         print fc_list[-1]
 
 pool = mp.Pool(mp.cpu_count())

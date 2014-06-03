@@ -5,6 +5,34 @@ import aurespf.solvers as au
 HOURS_IN_A_YEAR = 8766
 
 class FCResult:
+    """ This is a class for storing important data from a
+        flow calculation, without saving the entire
+        timeseries. This is necessary when doing many
+        flow calculation, because saved nodes-object
+        (.npz) take up around 150 Mb.
+        The class stores the following data for each node
+        in the network:
+        alpha, gamma, the balancing energy normalized
+        to the mean load of the region, balancing capacity
+        normalized to the mean load and the transmission
+        capacity in GW (if an FlowCalculation object is
+        passed to add_instance, and the appropriate copper
+        flow file (.npy) is available in the results folder.
+
+
+        Examples
+        --------
+        Store the data from the solved nodes object N,
+        with flows F in a FCResult file:
+
+        >>> myresults = FCResult("myfile.pkl")
+        # if a flowcalculation object, FC, exits for
+        # the calculation, passing this allows for the
+        # transmission capacity to be stored also.
+        >>> myresults.add_instance(N, F, FC)
+        >>> myresults.save_results("myfile.pkl")
+
+        """
 
     def __init__(self, filename, path="./results/"):
         self.cache = []

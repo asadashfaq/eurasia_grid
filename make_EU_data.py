@@ -12,6 +12,11 @@ for n in N:
     solar = solar + n.get_solar()
     load = load + n.load
 
+load = load/1000.0 # this is to compensate for the fact
+                   # that the load is multiplied by 1000
+                   # as the node-objects are created
+                   # whe EU_Nodes() is run
+
 t = np.linspace(0, len(load)-1, len(load))
 wind = wind/np.mean(wind)
 solar = solar/np.mean(solar)

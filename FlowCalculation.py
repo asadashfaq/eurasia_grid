@@ -3,13 +3,14 @@ class FlowCalculation:
         to a function that solves the network structure, by only passing
         one object, thus allowing for easy multiprocessing with map from
         the multiprocessing module.
-        Example: my_calc = Calculation('EU_RU_ME', 'aHE', 'q99', 'lin'),
+        Example: my_calc = FlowCalculation('EU_RU_ME', 'aHE', 'q99', 'lin'),
         aHE, means that a heterogeneous array of alphas are being used,
         the optimal mixes for each region individually.
 
         """
 
-    def __init__(self, layout, alphas, capacities, solvermode):
+    def __init__(self, layout, alphas, capacities, solvermode,\
+            savemode='full', basisnetwork = 'nh'):
         self.layout = layout
         self.alphas = alphas
         self.capacities = capacities
@@ -18,6 +19,10 @@ class FlowCalculation:
         else:
             self.solvermode = solvermode
 
+        self.savemode = savemode
+        self.basisnetwork = basisnetwork # This could be 'w' for the 8 super-
+                                         # regions, excluding USA, or 'nh',
+                                         # for the 9 when USA is included
 
     def __str__(self):
         return ''.join([self.layout, '_', self.alphas, '_', self.capacities,
