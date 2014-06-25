@@ -3,7 +3,7 @@ import numpy as np
 from solve_flows import solve_flow
 from FlowCalculation import FlowCalculation
 
-modes = ['lin', 'sqr']
+modes = ['lin', 'sqr', 'lin_imp', 'sqr_imp']
 layouts = ['EU_RU_NA_ME', 'eurasia', 'US_eurasia_open', \
            'US_eurasia_closed', 'US_EU_RU_NA_ME']
 

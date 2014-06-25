@@ -2,7 +2,6 @@ import numpy as np
 import cPickle as pickle
 import aurespf.solvers as au
 
-HOURS_IN_A_YEAR = 8766
 
 class FCResult:
     """ This is a class for storing important data from a
@@ -35,6 +34,7 @@ class FCResult:
         """
 
     def __init__(self, filename, path="./results/"):
+
         self.cache = []
 
         try:
@@ -43,11 +43,13 @@ class FCResult:
             self.save_results(filename, path)
 
     def __load_results__(self, filename, path="./results/"):
+
         with open(path+filename) as currentfile:
             self.cache = pickle.load(currentfile)
             assert(self.cache.__class__ == list),\
                     "Attempt to load wrong data format "\
                     + filename + "may be corrupt."
+        print "Loading data from file: ", filename
 
     def __len__(self):
         return len(self.cache)
@@ -58,6 +60,10 @@ class FCResult:
     def save_results(self, filename, path="./results/"):
         with open(path+filename, 'w') as currentfile:
             pickle.dump(self.cache, currentfile)
+        if len(self.cache) == 0:
+            print "File: " + filename + " created."
+        if len(self.cache) > 0:
+            print "Results saved to file: ", filename
 
     def add_instance(self, N, F, FC=None):
 
@@ -66,8 +72,15 @@ class FCResult:
         inst['gammas'] = [n.gamma for n in N]
         length_of_timeseries = len(N[0].balancing)
         inst['BE'] = [np.sum(n.balancing)/\
-                          (length_of_timeseries*n.mean) for n in N]
-        inst['BC'] = [au.get_q(n.balancing, 0.99)/n.mean for n in N]
+                          length_of_timeseries for n in N]
+        inst['BC'] = [au.get_q(n.balancing, 0.99) for n in N]
+
+        flow_histograms = []
+        for link in xrange(F.shape[0]):
+            flow, count = myhist(F[link], bins=200)
+            flow_histograms.append(np.array([flow, count]))
+        inst['flowhists'] = flow_histograms
+
         if FC:
             inst['FlowCalculation'] = FC
             if FC.capacities[-3:len(FC.capacities)] == "q99":
@@ -86,3 +99,16 @@ def TC_from_FC(FC):
 
     total_TC = scalefactor*np.sum(au.biggestpair(h0))
     return total_TC
+
+
+def myhist(*args, **kwargs):
+    """ Takes any of the same arguments as np.histogram() and returns
+        an array of xvalues, corresponding to the centers of the bins
+        of the histogram, along with the height of the bins (count).
+
+        """
+
+    count, bins = np.histogram(*args, **kwargs)
+    delta = float(bins[1]-bins[0])/2
+    xs = bins[:-1] + delta
+    return xs, count

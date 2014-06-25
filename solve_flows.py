@@ -42,57 +42,59 @@ def solve_flow(flow_calc):
         sys.stderr.write('The object has an distribution of mixes that\
                           is not accounted for.')
 
-    if flow_calc.solvermode=='lin':
-        mode = 'linear'
-    elif flow_calc.solvermode=='sqr':
-        mode = 'square'
-    elif flow_calc.solvermode=='capM':
-        mode = 'capped martin'
-    elif flow_calc.solvermode=='capR':
-        mode = 'capped rolando'
+    mode_str_list = []
+    if 'lin' in flow_calc.solvermode:
+        mode_str_list.append('linear ')
+    elif 'sqr' in flow_calc.solvermode:
+        mode_str_list.append('square ')
+    elif 'cap' in flow_calc.solvermode:
+        if 'M' in flow_calc.solvermode:
+            mode_str_list.append('capped martin ')
+        elif 'R' in flow_calc.solvermode:
+            mode_str_list.append('capped rolando ')
     else:
         sys.stderr.write('The solver mode must be "lin", "sqr", "capM" or "capR"')
+    if 'imp' in flow_calc.solvermode:
+        mode_str_list.append('impedance ')
+
+    mode = ''.join(mode_str_list)
+
 
     flowfilename = ''.join(['./results/', str(flow_calc), '_flows.npy'])
-    print flowfilename
-    print flow_calc.capacities
+
     if flow_calc.capacities=='copper':
-        solved_nodes, flows = au.solve(nodes, mode=''.join([mode, ' copper']))
-        print "Checkpt. copper"
+        solved_nodes, flows = au.solve(nodes, mode=''.join([mode, ' copper']),\
+                                msg=str(flow_calc))
     elif flow_calc.capacities=='q99':
         h0 = au.get_quant_caps(filename=copperflow_filename)
-        print h0
-        print h0.mean()
-        solved_nodes, flows = au.solve(nodes, h0=h0, mode=mode)
-        print "Checkpt. q99"
+        solved_nodes, flows = au.solve(nodes, h0=h0, mode=mode, \
+                                         msg=str(flow_calc))
     elif flow_calc.capacities=='hq99': # corresponds to half the capacities
                                          # of the 99% quantile layout
         h0 = 0.5*au.get_quant_caps(filename=copperflow_filename)
-        print h0
-        print h0.mean()
-        solved_nodes, flows = au.solve(nodes, h0=h0, mode=mode)
-        print "Checkpt. hq99"
+        solved_nodes, flows = au.solve(nodes, h0=h0, mode=mode, \
+                                        msg=str(flow_calc))
     elif flow_calc.capacities.endswith('q99'):
         scale = float(flow_calc.capacities[0:-3])
         h0 = scale*au.get_quant_caps(filename=copperflow_filename)
-        print h0
-        solved_nodes, flows = au.solve(nodes, h0=h0, mode=mode)
-        print "Checkpt. a*q99"
+        solved_nodes, flows = au.solve(nodes, h0=h0, mode=mode,\
+                                        msg=str(flow_calc))
     else:
         sys.stderr.write('The capacities must be either "copper", "q99",\
                             "hq99", or on the form "<number>q99"')
 
     if flow_calc.savemode == 'full':
         solved_nodes.save_nodes(filename)
-        print filename
         try:
             flows
+            np.save('./results/' + filename + '_flows', flows)
         except NameError:
             print "Flows not defined."
-        np.save('./results/' + filename + '_flows', flows)
 
-    if flow_calc.savemode == 'FCResult':
+    elif flow_calc.savemode == 'FCResult':
         result = FCResult(filename+'.pkl')
         result.add_instance(solved_nodes, flows, flow_calc)
         result.save_results(filename+'.pkl')
+    else:
+        print "Results not saved, invalid savemod provided"
 

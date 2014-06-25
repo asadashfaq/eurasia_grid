@@ -29,7 +29,9 @@ grayblue = '#4a7fa2'
 blue_cycle = [darkblue, blue, grayblue, lightblue]
 
 color_cycle = [blue, red, orange, purple, green, \
-               pink, lightblue, darkred, yellow]
+               pink, lightblue, darkred, yellow,
+               darkblue, grayblue, brown]
+
 
 def make_layout_flow_hists(flowcalc, interactive=False):
     """ Takes a FlowCalculation object,
@@ -87,25 +89,24 @@ def make_layout_mismatchhists(flowcalc, interactive=False):
         plt.ion()
 
     for n in N:
-        if n.id in get_indices_from_layout('EU_RU_NA_ME'):
-            mismatch = n.curtailment - n.balancing
-            nonzero_mismatch = []
-            for w in mismatch:
-                if w>=1 or w<-1:
-                    nonzero_mismatch.append(float(w)/n.mean)
+        mismatch = n.curtailment - n.balancing
+        nonzero_mismatch = []
+        for w in mismatch:
+            if w>=1 or w<-1:
+                 nonzero_mismatch.append(float(w)/n.mean)
 
-            plt.figure()
-            plt.hist(nonzero_mismatch, bins=bins, normed=True)
-            plt.title(''.join([str(n.label), '(', flowcalc.capacities, ')']))
-            plt.xlabel('Mismatch [normalized]')
-            plt.ylabel('Mismatch distribution')
+        plt.figure()
+        plt.hist(nonzero_mismatch, bins=bins, normed=True)
+        plt.title(''.join([str(n.label), '(', flowcalc.capacities, ')']))
+        plt.xlabel('Mismatch [normalized]')
+        plt.ylabel('Mismatch distribution')
 
-            figfilename = ''.join([str(n.label), '_mismatchhist_',\
+        figfilename = ''.join([str(n.label), '_mismatchhist_',\
                     flowcalc.capacities, '.pdf'])
-            savepath = "./results/figures/CheckStrangeBE/"
-            if not interactive:
-                plt.savefig(savepath+figfilename)
-                plt.close()
+        savepath = "./results/figures/CheckStrangeBE/"
+        if not interactive:
+            plt.savefig(savepath+figfilename)
+            plt.close()
 
 
 def ion_BE_vs_TC_testplot(layout):
@@ -123,18 +124,18 @@ def ion_BE_vs_TC_testplot(layout):
         capacity = ''.join([str(a), 'q99'])
         filenames.append(''.join([layout,'_aHE_',capacity,'_sqr.pkl']))
 
-    indexlist = get_indices_from_layout(layout)
-    N = nh_Nodes()
-    for i in indexlist:
+    admat = "./settings/" + layout + "admat.txt"
+    N = nh_Nodes(admat=admat)
+    for n in N:
         TC = []
         BE = []
         for filename in filenames:
             TC.append(get_data(filename, 'Total_TC',\
-                      './results/BalvsTransNoImpedance/')/1e6) # now in TW
+                      './results/BalvsTrans/')/1e6) # now in TW
             BE.append(get_data(filename, 'BE',\
-                     './results/BalvsTransNoImpedance/')[i])
+                     './results/BalvsTrans/')[n.id])
 
-        plt.plot(TC, BE, '-o', label=str(N[i].label) )
+        plt.plot(TC, BE, '-o', label=str(n.label) )
     plt.xlabel('Total transmission capacity [TW]')
     plt.ylabel('Balancing energy [normalized]')
     plt.legend()
@@ -157,14 +158,14 @@ def get_data(filename, field, path='./results/'):
 
     return returnvalue
 
-def make_all_noimp_BEBC_TC():
+def make_all_BEBC_TC():
     """ Running this generates the graphs
         for BE vs TC and BC vs TC for all
         layouts both for EU and for the whole layout together.
 
         """
+    modes = ['lin', 'lin_imp', 'sqr', 'sqr_imp']
 
-    modes = ['lin', 'sqr']
     layouts = ['EU_RU_NA_ME', 'eurasia', 'US_eurasia_open', \
            'US_eurasia_closed', 'US_EU_RU_NA_ME']
     ydatalabels = ['BE', 'BC']
@@ -179,13 +180,15 @@ def make_all_noimp_BEBC_TC():
                 fc_list.append(fc)
             for ydatalabel in ydatalabels:
                 savepath = ''.join(['./results/figures/', ydatalabel, 'vsTC/'])
+
                 make_bal_vs_trans_graph(fc_list, ydatalabel, region=r,\
                                         savepath=savepath)
 
 
 def make_bal_vs_trans_graph(flowcalcs, ydatalabel, region='EU', \
                     trans_scalerange=np.linspace(0,1.5, 31),\
-                    figfilename=None, savepath = './results/figures/', datapath='./results/BalvsTransNoImpedance/', interactive=False):
+                    figfilename=None, savepath = './results/figures/', \
+                    datapath='./results/BalvsTrans/', interactive=False):
 
     """ Example
         -------
@@ -205,31 +208,32 @@ def make_bal_vs_trans_graph(flowcalcs, ydatalabel, region='EU', \
         plt.ion()
 
     for fc in flowcalcs:
+
+        admat = "./settings/" + fc.layout + "admat.txt"
+        N = nh_Nodes(admat=admat)
+
         filenames = []
         for a in trans_scalerange:
             capacity = ''.join([str(a), 'q99'])
-            filenames.append(''.join([str(FlowCalculation(fc.layout, fc.alphas, \
+            filenames.append(''.join([str(FlowCalculation(fc.layout, fc.alphas,\
                         capacity, fc.solvermode)), '.pkl']))
 
         ydata = []
         TC = []
         if region=='EU':
             for filename in filenames:
-                ydata.append(get_data(filename, ydatalabel, path=datapath)[0])
+                ydata.append(get_data(filename, ydatalabel,\
+                        path=datapath)[0]/N[0].mean)
                 TC.append(get_data(filename, 'Total_TC', path=datapath)\
                           /1e6) # now in TW
 
         if region=='all':
-            N = nh_Nodes()
-            indexlist = get_indices_from_layout(fc.layout)
-            mean_load_list = [N[i].mean for i in xrange(9)]
             ### the total mean load for the regions in the current layout
-            total_mean_load = np.sum([mean_load_list[i] for i in indexlist])
+            total_mean_load = np.sum([n.mean for n in N])
 
             for filename in filenames:
-                unnormalized_data = [mean_load_list[i]*\
-                                     get_data(filename, ydatalabel, \
-                                     path=datapath)[i] for i in indexlist]
+                unnormalized_data = [get_data(filename, ydatalabel, \
+                                     path=datapath)[n.id] for n in N]
                 ydata.append(np.sum(unnormalized_data)/total_mean_load)
                 TC.append(get_data(filename, 'Total_TC', path=datapath)\
                           /1e6) # now in TW
@@ -255,56 +259,96 @@ def make_bal_vs_trans_graph(flowcalcs, ydatalabel, region='EU', \
         plt.savefig(savepath+figfilename)
         plt.close()
 
-def get_indices_from_layout(layout):
-    """ When given a layout, in the Nothern
-        hemisphere network, it returns a list
-        of indices of only the regions in said layuout.
+def get_total_linkflows(filename, path='./results/BalvsTrans/'):
+    """ Function that return a list of the total flows over the
+        full time series (not directed) for each link in a given
+        layout. Takes a filename and path to an FCResults file.
+        The total flows are (well) estimated based on the flow
+        histogramst that are save in the FCResults class.
 
         """
 
-    indexlist = []
-    if 'EU_RU_NA_ME' in layout:
-        indexlist.extend(range(4))
+    flow_hists = get_data(filename, 'flowhists', path)
 
-    if 'eurasia' in layout:
-        indexlist.extend(range(8))
+    total_flows = []
+    for i in range(len(flow_hists)):
+        total_flows.append(np.sum(\
+                [np.abs(flow_hists[i][0][j])*flow_hists[i][1][j] for j in \
+                range(len(flow_hists[i][0]))]))
 
-    if 'US' in layout:
-        indexlist.append(8)
+    return total_flows
 
-    return indexlist
+def normalize_list(mylist):
+    total = np.sum(mylist)
+    normalized_list = [float(x)/total for x in mylist]
+    return normalized_list
 
-
-def BC_vs_TC_old(filenames = ['BC_TC_datacapM.npz', 'BC_TC_datacapR.npz'],\
-        path='./results/', labels = None, savepath='./results/figures/',\
-        figfilename = 'BC_vs_TC_RolMar.pdf', BC_type='both'):
+def make_relflow_vs_TC_graph(flow_calcs, \
+                             trans_scalerange=np.linspace(0.05,1.5, 30),\
+                    figfilename=None, savepath = './results/figures/', \
+                    datapath='./results/BalvsTrans/', interactive=False):
     plt.close()
     plt.rc('lines', lw=2)
 
-    labelcount = 0
-    for f in filenames:
-        data = np.load(''.join([path, f]))
-        BC_max = data['BC_max']
-        BC_q99 = data['BC_q99']
-        TC = data['TC']
-        if not labels:
-            label = f
-        else:
-            label = labels[labelcount]
-        if BC_type in ['max', 'both']:
-            plt.plot(1e-6*TC, BC_max, 'o', label='BCmax: '+label)
-        if BC_type in ['q99', 'both']:
-            plt.plot(1e-6*TC, BC_q99, 'o', label='BCq99: '+label)
-        else:
-            print 'Try "max", "q99" or "both" for BC_type'
-            return
+    plt.rcParams['axes.color_cycle'] = color_cycle
 
-        labelcount = labelcount + 1
+    if interactive:
+        plt.ion()
 
-    plt.xlabel('Transmission capacity [TW]')
-    plt.ylabel('Balancing capacity [normalized]')
-    plt.legend()
+    for fc in flow_calcs:
+        plt.subplot(1,len(flow_calcs), flow_calcs.index(fc))
+        admat = './settings/' + fc.layout + 'admat.txt'
+        N= nh_Nodes(admat=admat)
 
-    plt.savefig(savepath+figfilename)
-    plt.close()
+        filenames = []
+        for a in trans_scalerange:
+            capacity = ''.join([str(a), 'q99'])
+            filenames.append(''.join([str(FlowCalculation(fc.layout, fc.alphas,\
+                        capacity, fc.solvermode)), '.pkl']))
+
+
+        rel_flows = []
+        TC = []
+        for filename in filenames:
+            rel_flows.append(normalize_list(get_total_linkflows(filename,\
+                                            path=datapath)))
+            TC.append(get_data(filename, 'Total_TC', path=datapath)\
+                    /1e6) # Now in TW
+
+        linklist = au.AtoKh(N)[-1]
+        for i in range(len(linklist)):
+            linkflow = [rel_flows[j][i] for j in range(len(rel_flows))]
+            plt.plot(TC, linkflow, label=''.join([linklist[i][0], " ", \
+                    fc.solvermode]))
+
+            plt.legend(prop={'size':8})
+        plt.xlabel('Total transmission capacity [TW]')
+        plt.ylabel('Relative link usage')
+        plt.ylim(0, 0.4)
+        plt.xlim(min(TC), max(TC))
+        plt.title(fc.layout)
+
+    if not figfilename:
+        figfilename = ''.join([flow_calcs[0].layout, '_relflows', '.pdf'])
+
+    if not interactive:
+        plt.savefig(savepath+figfilename)
+        plt.close()
+
+def make_all_relflowgraphs():
+    modes = [['lin_imp', 'lin'], ['sqr_imp', 'sqr']]
+
+    layouts = ['EU_RU_NA_ME', 'eurasia', 'US_eurasia_open', \
+           'US_eurasia_closed', 'US_EU_RU_NA_ME']
+
+    savepath = './results/figures/RelflowsImpNoImp/'
+    for l in layouts:
+        for modesublist in modes:
+            fclist = [FlowCalculation(l, 'aHE', 'copper', modesublist[0]),
+                        FlowCalculation(l, 'aHE', 'copper', modesublist[1])]
+            figfilename = l + '_' + modesublist[0] + '.pdf'
+            make_relflow_vs_TC_graph(fclist, figfilename=figfilename,\
+                                         savepath=savepath)
+
+
 
