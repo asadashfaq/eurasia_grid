@@ -38,6 +38,9 @@ def nh_Nodes(admat=None, load_filename=None, full_load=False, alphas=None):
         alphas = []
         for r in regions:
             alphas.append(all_alphas[all_regions.index(r)])
+    if type(alphas)==float or type(alphas)==int:
+        homogeneousalpha = alphas
+        alphas = homogeneousalpha*np.ones(len(regions))
 
 
     return au.Nodes(admat=admat, path='./data/', prefix=prefix,

@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.interpolate import interp1d
 
 import aurespf.solvers as au
 from nhgrid import nh_Nodes
@@ -199,7 +200,7 @@ def make_bal_vs_trans_graph(flowcalcs, ydatalabel, region='EU', \
     plt.close()
     plt.rc('lines', lw=2)
 
-    if not flowcalcs.__class__==list:
+    if type(flowcalcs)!=list:
         flowcalcs = [flowcalcs]
 
     xmaxlist = []
@@ -349,6 +350,186 @@ def make_all_relflowgraphs():
             figfilename = l + '_' + modesublist[0] + '.pdf'
             make_relflow_vs_TC_graph(fclist, figfilename=figfilename,\
                                          savepath=savepath)
+
+
+def make_all_y_vs_alpha_graph():
+    modes = ['lin', 'lin_imp', 'sqr', 'sqr_imp']
+
+    layouts = ['EU_RU_NA_ME', 'eurasia', 'US_eurasia_open', \
+           'US_eurasia_closed', 'US_EU_RU_NA_ME']
+    ydatalabels = ['BE', 'BC', 'Total_TC']
+    for l in layouts:
+        fc_list = []
+        for m in modes:
+            fc = FlowCalculation(l, 'aHO1', 'copper', m)
+            fc_list.append(fc)
+        for ydatalabel in ydatalabels:
+            savepath = ''.join(['./results/figures/', ydatalabel, 'vsAlpha/'])
+
+            make_y_vs_alpha_graph(fc_list, ydatalabel, savepath=savepath, \
+                                   zerotrans=True, showminima=True)
+
+def make_y_vs_alpha_graph(flowcalcs, ydatalabel, alphas=np.linspace(0,1,21), \
+                          figfilename=None, savepath='./results/figures/', \
+                          datapath='./results/AlphaSweepsCopper/', \
+                          interactive=False, zerotrans=False, showminima=False):
+
+    """ ydatalabel should be 'BE', 'BC' or 'Total_TC'
+        The alphas's field of the FlowCalculation objects are disregared,
+        an a graph is generated based on the other fields in the object,
+        in a range of alphas.
+        Example
+        -------
+        make_y_vs_alpha_graph([flowcalclin, flowcalcsqr], 'BE')
+
+        """
+
+    plt.close()
+    plt.rc('lines', lw=2)
+    plt.rcParams['axes.color_cycle'] = color_cycle
+
+    if type(flowcalcs)!=list:
+        flowcalcs = [flowcalcs]
+
+    if interactive:
+        plt.ion()
+
+    layoutlist = [fc.layout for fc in flowcalcs]
+    samelayout = (layoutlist[1:]==layoutlist[:-1]) ## True if all the layouts
+                                                    # are the same, False
+                                                    # otherwise
+    minimum_text = 'Minima:\n'
+    for fc in flowcalcs:
+        admat = "./settings/" + fc.layout + "admat.txt"
+        N = nh_Nodes(admat=admat)
+
+####### Plot the zero transmission case ######################################
+        if zerotrans and ydatalabel!='Total_TC':
+            if (not samelayout) or flowcalcs.index(fc)==0:
+                zerotrans_ydata = []
+                for a in alphas:
+                    zerotrans_ydata.append(get_zerotrans_data(alpha=a, \
+                                         ydatalabel=ydatalabel, fc=fc))
+
+                plt.plot(alphas, zerotrans_ydata, \
+                        label=''.join([fc.layout, ': zerotrans']))
+
+####### extract an plot data from homogenous alpha layout ####################
+        filenames = []
+        for a in alphas:
+            alphacode = ''.join(['aHO', str(a)])
+            filenames.append(''.join([str(FlowCalculation(fc.layout,\
+                         alphacode, fc.capacities, fc.solvermode)), '.pkl']))
+
+        total_mean_load = np.sum([n.mean for n in N])
+        ydata = []
+        for filename in filenames:
+            if ydatalabel in ['BE', 'BC']:
+                unnormalized_data = get_data(filename, ydatalabel, \
+                                 path=datapath)
+                assert(len(unnormalized_data)==len(N))
+                ydata.append(np.sum(unnormalized_data)/total_mean_load)
+            elif ydatalabel == 'Total_TC':
+                ydata.append(get_data(filename, ydatalabel, path=datapath)\
+                             /1e6) # now in TW
+
+        plt.plot(alphas, ydata, \
+                label=''.join([fc.layout, ': ', fc.solvermode]))
+
+####### find and show minima if this option is set True ######################
+        if showminima:
+            if zerotrans and ydatalabel!='Total_TC':
+                if (not samelayout) or flowcalcs.index(fc)==0:
+                    alphamin, ymin = find_interp_minimum(alphas,\
+                                                 zerotrans_ydata)
+                    plt.plot(alphamin, ymin, 'ok')
+                    minimum_text = minimum_text + '%s %s: (%f, %f)\n' \
+                            %(fc.layout, 'zerotrans', alphamin, ymin)
+            alphamin, ymin = find_interp_minimum(alphas, ydata)
+            plt.plot(alphamin, ymin, 'ok')
+            minimum_text = minimum_text + '%s %s: (%f, %f)\n' \
+                    %(fc.layout, fc.solvermode, alphamin, ymin)
+
+
+####### generate point from heterogeneous alpha layout (optimal mixes ######
+        het_filename = ''.join([str(FlowCalculation(fc.layout, 'aHE',\
+                                'copper', fc.solvermode)), '.pkl'])
+        # the folowing i an average of the mixes in the heterogeneous
+        # (optimal wrt. balancing energy) layout of alphas. This works
+        # because N is loaded with these mixes as default
+        avg_het_alpha = np.sum([n.mean*n.alpha for n in N])/total_mean_load
+        if ydatalabel in ['BE', 'BC']:
+            het_y_value = np.sum(get_data(het_filename, ydatalabel, \
+                                path=datapath))/total_mean_load
+        elif ydatalabel == 'Total_TC':
+            het_y_value = get_data(het_filename, ydatalabel, path=datapath)\
+                          /1e6 # now in TW
+
+        plt.plot(avg_het_alpha, het_y_value, 'x', markersize=8, \
+                label= fc.layout + ' ' + r'$\alpha_W^{opt}$' + ': ' \
+                        + fc.solvermode)
+#### finish up the plot ####################################################
+    if showminima:
+        plt.text(0.1, 0, minimum_text)
+    plt.xlabel(r'$\alpha_W$')
+
+    if ydatalabel=='BE':
+        plt.ylabel('Balancing energy [normalized]')
+    elif ydatalabel=='BC':
+        plt.ylabel('Balancing capacity [normalized]')
+    elif ydatalabel=='Total_TC':
+        plt.ylabel('Total transmission capacity [TW]')
+
+    plt.legend(prop={'size':7})
+    plt.title(flowcalcs[0].layout)
+    plt.xlim((0, 1))
+    plt.ylim(ymin=0)
+    if not figfilename:
+        figfilename = ''.join([flowcalcs[0].layout, '_', ydatalabel, \
+                              '_vs_alpha.pdf'])
+
+    if not interactive:
+        plt.savefig(savepath+figfilename)
+        plt.close()
+
+def get_zerotrans_data(alpha, ydatalabel, fc):
+    """ If ydatalabel is 'BE' it returns the normalized
+        total backup energy in the layout specified in the
+        Flowcalculation object fc, in a homogenous mixing
+        layout with mixing alpha. If 'BC' the backup capacity
+        is retured.
+
+        """
+
+    admat = "./settings/" + fc.layout + "admat.txt"
+    N = nh_Nodes(admat=admat, alphas=alpha)
+    total_mean_load = np.sum([n.mean for n in N])
+    length_of_timeseries = len(N[0].mismatch)
+    for n in N:
+        n.balancing = -au.get_negative(n.mismatch)
+
+    if ydatalabel=='BE':
+        result = np.sum([np.sum(n.balancing) for n in N])\
+                 /(length_of_timeseries*total_mean_load)
+    elif ydatalabel=='BC':
+        result = np.sum([au.get_q(n.balancing, 0.99) for n in N])\
+                /total_mean_load
+    else:
+        print "ydatalabel must be 'BE' or 'BC'"
+        return
+
+    return result
+
+
+def find_interp_minimum(x, y, rel_tol = 1e-3):
+    N = int(1.0/rel_tol)
+    xfine = np.linspace(np.min(x), np.max(x), N)
+    f = interp1d(x, y, kind='cubic')
+    ymin = f(xfine).min()
+    xmin = xfine[f(xfine).argmin()]
+
+    return xmin, ymin
+
 
 
 

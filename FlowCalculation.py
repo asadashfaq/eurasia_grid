@@ -10,7 +10,7 @@ class FlowCalculation:
         """
 
     def __init__(self, layout, alphas, capacities, solvermode,\
-            savemode='full', basisnetwork = 'nh'):
+            savemode='full', basisnetwork = 'nh', hourly_flowhist=False):
         self.layout = layout
         self.alphas = alphas
         self.capacities = capacities
@@ -23,6 +23,15 @@ class FlowCalculation:
         self.basisnetwork = basisnetwork # This could be 'w' for the 8 super-
                                          # regions, excluding USA, or 'nh',
                                          # for the 9 when USA is included
+                                         # This is, however, irelevant now, since
+                                         # Admats of different sizes are used in each
+                                         # case.
+        self.hourly_flowhist = hourly_flowhist # if True, the FCResult-class
+                                               # calculates flowhistograms for each
+                                               # link, conditioned on the hour of day.
+                                               # This is a heavy calculation (4 min for
+                                               # a network) and is thus left as False as
+                                               # a default.
 
     def __str__(self):
         return ''.join([self.layout, '_', self.alphas, '_', self.capacities,

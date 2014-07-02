@@ -1,6 +1,7 @@
 import numpy as np
 import cPickle as pickle
 import aurespf.solvers as au
+from FlowCalculation import FlowCalculation
 
 
 class FCResult:
@@ -75,16 +76,40 @@ class FCResult:
                           length_of_timeseries for n in N]
         inst['BC'] = [au.get_q(n.balancing, 0.99) for n in N]
 
+        # Save flow histograms of all the flow along the links
         flow_histograms = []
         for link in xrange(F.shape[0]):
             flow, count = myhist(F[link], bins=200)
             flow_histograms.append(np.array([flow, count]))
         inst['flowhists'] = flow_histograms
 
+        # save data, that requires a Flowcalculation object for specification
         if FC:
             inst['FlowCalculation'] = FC
+
+            if FC.hourly_flowhist:
+                # flow histograms, of flow along the links, conditioned
+                # on the hour.
+                hourly_flow_histograms = []
+                for link in xrange(F.shape[0]):
+                    hour_hist_list = []
+                    for hour in range(24):
+                        hour_indices = [i for i in xrange(F.shape[1]) \
+                                        if np.mod(i, 24)==hour]
+                        hour_flows = F[link][hour_indices]
+                        flow, count = myhist(hour_flows, bins=200)
+                        hour_hist_list.append(np.array([flow, count]))
+                    hourly_flow_histograms.append(hour_hist_list)
+                inst['hourly_flowhists'] = hourly_flow_histograms
+
+
             if FC.capacities[-3:len(FC.capacities)] == "q99":
-                inst['Total_TC'] = TC_from_FC(FC)
+                inst['Total_TC'] = TC_from_FC(FC)[0]
+                inst['TC'] = TC_from_FC(FC)[1]
+            elif FC.capacities == 'copper':
+                h0 = au.get_quant_caps(F=F)
+                inst['TC'] = h0
+                inst['Total_TC'] = np.sum(au.biggestpair(h0))
 
         self.cache.append(inst)
 
@@ -98,7 +123,7 @@ def TC_from_FC(FC):
     scalefactor = float(FC.capacities[0:-3])
 
     total_TC = scalefactor*np.sum(au.biggestpair(h0))
-    return total_TC
+    return total_TC, h0
 
 
 def myhist(*args, **kwargs):

@@ -22,22 +22,13 @@ def solve_flow(flow_calc):
         else:
             sys.stderr.write('The object has a basisnetwork that\
                           is not accounted for. Use "w" or "nh".')
-    elif flow_calc.alphas=='aHO0':
-        if flow_calc.basisnetwork == 'w':
-            nodes = world_Nodes(admat=admat, alphas=np.zeros(8))
+    elif flow_calc.alphas.startswith('aHO'):
         if flow_calc.basisnetwork == 'nh':
-            nodes = nh_Nodes(admat=admat, alphas=np.zeros(9))
+            alpha = float(flow_calc.alphas[3:]) # expects alphas on the form aHO0.4
+            nodes = nh_Nodes(admat=admat, alphas=alpha)
         else:
             sys.stderr.write('The object has a basisnetwork that\
-                          is not accounted for. Use "w" or "nh".')
-    elif flow_calc.alphas=='aHO1':
-        if flow_calc.basisnetwork == 'w':
-            nodes = world_Nodes(admat=admat, alphas=np.ones(8))
-        if flow_calc.basisnetwork == 'nh':
-            nodes = nh_Nodes(admat=admat, alphas=np.ones(9))
-        else:
-            sys.stderr.write('The object has a basisnetwork that\
-                          is not accounted for. Use "w" or "nh".')
+                          is not accounted for. Use "nh".')
     else:
         sys.stderr.write('The object has an distribution of mixes that\
                           is not accounted for.')
