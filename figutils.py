@@ -522,6 +522,14 @@ def get_zerotrans_data(alpha, ydatalabel, fc):
 
 
 def find_interp_minimum(x, y, rel_tol = 1e-3):
+    """ Given an independent variable x and a variable
+        dependent on x, y, this function creates a cubic
+        interpolation, to estimate the minimum value of
+        y as a function of x, with the relative precicion
+        rel_tol.
+
+        """
+
     N = int(1.0/rel_tol)
     xfine = np.linspace(np.min(x), np.max(x), N)
     f = interp1d(x, y, kind='cubic')
@@ -531,5 +539,165 @@ def find_interp_minimum(x, y, rel_tol = 1e-3):
     return xmin, ymin
 
 
+def make_all_hourly_flowhists():
+
+    modes = ['lin', 'lin_imp', 'sqr', 'sqr_imp']
+
+    layouts = ['EU_RU_NA_ME', 'eurasia', 'US_eurasia_open', \
+               'US_eurasia_closed', 'US_EU_RU_NA_ME']
+
+    # make plots with one mode in each plot,
+    # at 4 different times a day
+    for layout in layouts:
+        for m in modes:
+            fc = FlowCalculation(layout, 'aHO1', 'copper', m)
+            savepath = './results/figures/HourlyFlowhists/Every6hours/' \
+                         + layout + '/'
+            make_hourly_flowhists(fc, hours = [0, 6, 12, 18],
+                                  savepath = savepath)
+
+    modes = [['lin', 'lin_imp'], ['sqr', 'sqr_imp']]
+    for layout in layouts:
+        for m in modes:
+            flowcalcs = [FlowCalculation(layout, 'aHO1', 'copper', m[0]),\
+                         FlowCalculation(layout, 'aHO1', 'copper', m[1])]
+            savepath = './results/figures/HourlyFlowhists/ImpVsNoImp/'\
+                         + layout + '/'
+            make_hourly_flowhists(flowcalcs, hours = [0, 12],
+                                  figfileending=m[0] + '_hflowhist',
+                                  savepath = savepath)
+
+    return
 
 
+def make_hourly_flowhists(flowcalcs, links='all', alphas=[0.0, 0.5, 0.9, 1.0],\
+                          hours = [0, 12], figfileending=None, \
+                          savepath='./results/figures/', \
+                          datapath='./results/AlphaSweepsCopper/', \
+                          interactive=False, subplotshape=(2,2)):
+
+    """ The produced plots will be named <link>_<figfileending>.pdf
+        The arguments links must be either 'all' or on the form:
+        ['EU to RU', ...] (a list!). Make sure that the alphas match
+        existing .pkl-files, from the FCResults-class, number of decimals
+        matter.
+
+        """
+
+    plt.close()
+    plt.rc('lines', lw=2)
+    plt.rcParams['axes.color_cycle'] = color_cycle
+
+    if type(flowcalcs)!=list:
+        flowcalcs = [flowcalcs]
+
+    if interactive:
+        plt.ion()
+
+
+    layoutlist = [fc.layout for fc in flowcalcs]
+    samelayout = (layoutlist[1:]==layoutlist[:-1]) ## True if all the layouts
+                                                    # are the same, False
+                                                    # otherwise
+    if links=='all' and samelayout:
+        admat = "./settings/" + layoutlist[0] + "admat.txt"
+        N = nh_Nodes(admat=admat)
+        linklist = [link[0] for link in au.AtoKh(N)[-1]]
+    elif links=='all':
+        print "'all' option for links, is only possible when all flowcalcs\
+                have the same layout. No figure produced. "
+        return
+    else:
+        linklist = links
+
+    print linklist
+
+    for link in linklist:
+        fig = plt.figure(figsize=(12,12))
+        minflow = 0
+        maxflow = 0
+        if samelayout:
+            linkindex = get_link_number_in_layout(link, flowcalcs[0].layout)
+        for fc in flowcalcs:
+            if not samelayout:
+                linkindex = get_link_number_in_layout(link, fc.layout)
+            for a in alphas:
+                filename = ''.join([fc.layout, '_aHO', str(a),\
+                                     '_copper_', fc.solvermode, '.pkl'])
+                flowhistdata = get_data(filename, 'hourly_flowhists', \
+                                        path=datapath)
+
+                plt.subplot(subplotshape[0], subplotshape[1], alphas.index(a)+1)
+
+                for h in hours:
+
+                    flow = flowhistdata[linkindex][h][0]
+                    count = flowhistdata[linkindex][h][1]
+                    totalcount = np.sum(count)
+                    Pflow = [float(c)/totalcount for c in count]
+                    # plotting flow in GW
+                    if samelayout:
+                        label = ''.join([fc.solvermode,': ', r'$h=$', str(h)])
+                    else:
+                        label = ''.join([fc.layout, ' ', fc.solvermode,': ',\
+                                r'$h=$', str(h)])
+                    plt.plot(flow/1e3, Pflow, label=label)
+
+
+                    if maxflow < np.max(flow)/1e3:
+                        maxflow = np.max(flow)/1e3
+                    if minflow > np.min(flow)/1e3:
+                        minflow = np.min(flow)/1e3
+
+                plt.legend(prop={'size':8})
+                plt.title(r'$\alpha_W$ = ' + str(a))
+                plt.xlabel('Powerflow' +  r'$F_l$' + ' [GW]')
+                plt.ylabel(r'$P(F_l | h)$')
+                if 'lin' in fc.solvermode:
+                    plt.ylim(0, 0.06)
+
+        # loop for adjusting all the x-axis, to be equal
+        for a in alphas:
+            plt.subplot(subplotshape[0], subplotshape[1], alphas.index(a)+1)
+            plt.xlim(minflow, maxflow)
+        if samelayout:
+            fig.suptitle(''.join([link, ' (in ', fc.layout, '-grid)']),\
+                         fontsize='20')
+        else:
+            fig.suptitle(link, fontsize='20')
+
+        if not figfileending:
+            figfilename = ''.join([link.replace(' ', '_'), '_', \
+                                   flowcalcs[0].solvermode, '_',\
+                                   'hflowhist.pdf'])
+        else:
+            figfilename = ''.join([link.replace(' ', '_'), '_', \
+                                    figfileending, '.pdf'])
+
+        if not interactive:
+            plt.savefig(savepath+figfilename)
+            plt.close()
+
+    return
+
+
+def get_link_number_in_layout(link, layout):
+    """ Takes a link and a layout and returns the index if the
+        link in the layout.
+
+        Example:
+        -------
+        get_link_number_in_layout('IN to SE', 'eurasia')
+
+        """
+
+    admat = './settings/' + layout + 'admat.txt'
+    N = nh_Nodes(admat=admat)
+    linkinfo = au.AtoKh(N)[-1]
+    reversedlink = ''.join([link[-2:], link[2:-2], link[0:2]])
+    for i in xrange(len(linkinfo)):
+        if linkinfo[i][0] in [link, reversedlink]:
+            return linkinfo[i][1]
+
+    print "Link not found"
+    return
