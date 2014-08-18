@@ -4,8 +4,10 @@ from scipy.interpolate import interp1d
 
 import aurespf.solvers as au
 from nhgrid import nh_Nodes
+from europe_plusgrid import europe_plus_Nodes
 from FCResult import FCResult
 from FlowCalculation import FlowCalculation
+import costtools as ct
 
 #### Colorschemes ################################
 
@@ -189,7 +191,8 @@ def make_all_BEBC_TC():
 def make_bal_vs_trans_graph(flowcalcs, ydatalabel, region='EU', \
                     trans_scalerange=np.linspace(0,1.5, 31),\
                     figfilename=None, savepath = './results/figures/', \
-                    datapath='./results/BalvsTrans/', interactive=False):
+                    datapath='./results/BalvsTrans/', interactive=False,
+                    title=True, legend=True, ylim=None):
 
     """ Example
         -------
@@ -199,6 +202,7 @@ def make_bal_vs_trans_graph(flowcalcs, ydatalabel, region='EU', \
 
     plt.close()
     plt.rc('lines', lw=2)
+    plt.rcParams['axes.color_cycle'] = color_cycle
 
     if type(flowcalcs)!=list:
         flowcalcs = [flowcalcs]
@@ -241,7 +245,7 @@ def make_bal_vs_trans_graph(flowcalcs, ydatalabel, region='EU', \
 
 
         xmaxlist.append(np.max(TC))
-        plt.plot(TC,ydata, label=''.join([fc.layout,': ', fc.solvermode]))
+        plt.plot(TC,ydata, label=fc.pretty_solvermode())
 
     plt.xlabel('Total transmission capacity [TW]')
     if ydatalabel=='BE':
@@ -249,9 +253,14 @@ def make_bal_vs_trans_graph(flowcalcs, ydatalabel, region='EU', \
     if ydatalabel=='BC':
         plt.ylabel('Balancing capacity [normalized]')
 
-    plt.legend()
-    plt.title(region + ': ' + flowcalcs[0].layout)
+    if legend:
+        plt.legend()
+    if title:
+        plt.title(region + ': ' + flowcalcs[0].layout)
+
     plt.xlim((0,np.min(xmaxlist)))
+    if ylim:
+        plt.ylim(ylim)
     if not figfilename:
         figfilename = ''.join([flowcalcs[0].layout, '_', ydatalabel, '_', \
                 region, '.pdf'])
@@ -372,7 +381,9 @@ def make_all_y_vs_alpha_graph():
 def make_y_vs_alpha_graph(flowcalcs, ydatalabel, alphas=np.linspace(0,1,21), \
                           figfilename=None, savepath='./results/figures/', \
                           datapath='./results/AlphaSweepsCopper/', \
-                          interactive=False, zerotrans=False, showminima=False):
+                          interactive=False, zerotrans=False,\
+                          showminima=False, hetpoints=True, labels=None,\
+                          title=True, small_legend=True):
 
     """ ydatalabel should be 'BE', 'BC' or 'Total_TC'
         The alphas's field of the FlowCalculation objects are disregared,
@@ -399,6 +410,8 @@ def make_y_vs_alpha_graph(flowcalcs, ydatalabel, alphas=np.linspace(0,1,21), \
                                                     # are the same, False
                                                     # otherwise
     minimum_text = 'Minima:\n'
+    label_counter = 0
+
     for fc in flowcalcs:
         admat = "./settings/" + fc.layout + "admat.txt"
         N = nh_Nodes(admat=admat)
@@ -411,8 +424,14 @@ def make_y_vs_alpha_graph(flowcalcs, ydatalabel, alphas=np.linspace(0,1,21), \
                     zerotrans_ydata.append(get_zerotrans_data(alpha=a, \
                                          ydatalabel=ydatalabel, fc=fc))
 
+                if not labels:
+                    zerotrans_label = ''.join([fc.layout, ': zerotrans'])
+                else:
+                    zerotrans_label = labels[label_counter]
+                    label_counter += 1
+
                 plt.plot(alphas, zerotrans_ydata, \
-                        label=''.join([fc.layout, ': zerotrans']))
+                        label=zerotrans_label)
 
 ####### extract an plot data from homogenous alpha layout ####################
         filenames = []
@@ -432,9 +451,14 @@ def make_y_vs_alpha_graph(flowcalcs, ydatalabel, alphas=np.linspace(0,1,21), \
             elif ydatalabel == 'Total_TC':
                 ydata.append(get_data(filename, ydatalabel, path=datapath)\
                              /1e6) # now in TW
+        if not labels:
+            label = ''.join([fc.layout, ': ', fc.solvermode])
+        else:
+            label = labels[label_counter]
+            label_counter += 1
 
         plt.plot(alphas, ydata, \
-                label=''.join([fc.layout, ': ', fc.solvermode]))
+                label=label)
 
 ####### find and show minima if this option is set True ######################
         if showminima:
@@ -451,27 +475,35 @@ def make_y_vs_alpha_graph(flowcalcs, ydatalabel, alphas=np.linspace(0,1,21), \
                     %(fc.layout, fc.solvermode, alphamin, ymin)
 
 
-####### generate point from heterogeneous alpha layout (optimal mixes ######
-        het_filename = ''.join([str(FlowCalculation(fc.layout, 'aHE',\
-                                'copper', fc.solvermode)), '.pkl'])
-        # the folowing i an average of the mixes in the heterogeneous
-        # (optimal wrt. balancing energy) layout of alphas. This works
-        # because N is loaded with these mixes as default
-        avg_het_alpha = np.sum([n.mean*n.alpha for n in N])/total_mean_load
-        if ydatalabel in ['BE', 'BC']:
-            het_y_value = np.sum(get_data(het_filename, ydatalabel, \
-                                path=datapath))/total_mean_load
-        elif ydatalabel == 'Total_TC':
-            het_y_value = get_data(het_filename, ydatalabel, path=datapath)\
-                          /1e6 # now in TW
+####### generate point from heterogeneous alpha layout (optimal mixes) #####
+####### if the hetpoints option is set as true #############################
+        if hetpoints:
+            het_filename = ''.join([str(FlowCalculation(fc.layout, 'aHE',\
+                                    'copper', fc.solvermode)), '.pkl'])
+            # the folowing i an average of the mixes in the heterogeneous
+            # (optimal wrt. balancing energy) layout of alphas. This works
+            # because N is loaded with these mixes as default
+            avg_het_alpha = np.sum([n.mean*n.alpha for n in N])\
+                                /total_mean_load
+            if ydatalabel in ['BE', 'BC']:
+                het_y_value = np.sum(get_data(het_filename, ydatalabel, \
+                                    path=datapath))/total_mean_load
+            elif ydatalabel == 'Total_TC':
+                het_y_value = get_data(het_filename, ydatalabel,\
+                        path=datapath)/1e6 # now in TW
 
-        plt.plot(avg_het_alpha, het_y_value, 'x', markersize=8, \
-                label= fc.layout + ' ' + r'$\alpha_W^{opt}$' + ': ' \
-                        + fc.solvermode)
+            if not labels:
+                het_label = fc.layout + ' ' + r'$\alpha^W_{\mathrm{opt}}$' + ': ' \
+                            + fc.solvermode
+            else:
+                het_label = labels[label_counter]
+                label_counter += 1
+            plt.plot(avg_het_alpha, het_y_value, 'x', markersize=8, \
+                    label=het_label)
 #### finish up the plot ####################################################
     if showminima:
         plt.text(0.1, 0, minimum_text)
-    plt.xlabel(r'$\alpha_W$')
+    plt.xlabel(r'$\alpha^W$')
 
     if ydatalabel=='BE':
         plt.ylabel('Balancing energy [normalized]')
@@ -480,8 +512,15 @@ def make_y_vs_alpha_graph(flowcalcs, ydatalabel, alphas=np.linspace(0,1,21), \
     elif ydatalabel=='Total_TC':
         plt.ylabel('Total transmission capacity [TW]')
 
-    plt.legend(prop={'size':7})
-    plt.title(flowcalcs[0].layout)
+    if small_legend:
+        plt.legend(prop={'size':7})
+    else:
+        plt.legend()
+
+    if samelayout:
+        if title:
+            plt.title(flowcalcs[0].layout)
+
     plt.xlim((0, 1))
     plt.ylim(ymin=0)
     if not figfilename:
@@ -599,13 +638,15 @@ def make_hourly_flowhists(flowcalcs, links='all', alphas=[0.0, 0.5, 0.9, 1.0],\
     samelayout = (layoutlist[1:]==layoutlist[:-1]) ## True if all the layouts
                                                     # are the same, False
                                                     # otherwise
-    if links=='all' and samelayout:
+    only_openclosed = all([('US_eurasia' in l) for l in layoutlist])
+    if links=='all' and (samelayout or only_openclosed) :
         admat = "./settings/" + layoutlist[0] + "admat.txt"
         N = nh_Nodes(admat=admat)
         linklist = [link[0] for link in au.AtoKh(N)[-1]]
     elif links=='all':
         print "'all' option for links, is only possible when all flowcalcs\
-                have the same layout. No figure produced. "
+                have the same layout, or all the layouts are either\
+                US_eurasia_open or -closed. No figure produced. "
         return
     else:
         linklist = links
@@ -618,6 +659,8 @@ def make_hourly_flowhists(flowcalcs, links='all', alphas=[0.0, 0.5, 0.9, 1.0],\
         maxflow = 0
         if samelayout:
             linkindex = get_link_number_in_layout(link, flowcalcs[0].layout)
+        lines = []
+        labels = []
         for fc in flowcalcs:
             if not samelayout:
                 linkindex = get_link_number_in_layout(link, fc.layout)
@@ -637,31 +680,38 @@ def make_hourly_flowhists(flowcalcs, links='all', alphas=[0.0, 0.5, 0.9, 1.0],\
                     Pflow = [float(c)/totalcount for c in count]
                     # plotting flow in GW
                     if samelayout:
-                        label = ''.join([fc.solvermode,': ', r'$h=$', str(h)])
+                        label = ''.join([fc.pretty_solvermode(),': ', r'$h=$', str(h)])
                     else:
-                        label = ''.join([fc.layout, ' ', fc.solvermode,': ',\
+                        label = ''.join([fc.pretty_layout(), ' ', fc.pretty_solvermode(),': ',\
                                 r'$h=$', str(h)])
-                    plt.plot(flow/1e3, Pflow, label=label)
+                    line = plt.plot(flow/1e3, Pflow, label=label)
 
+                    if alphas.index(a)==0:
+                        lines.append(line)
+                        labels.append(label)
 
                     if maxflow < np.max(flow)/1e3:
                         maxflow = np.max(flow)/1e3
                     if minflow > np.min(flow)/1e3:
                         minflow = np.min(flow)/1e3
 
-                plt.legend(prop={'size':8})
-                plt.title(r'$\alpha_W$ = ' + str(a))
-                plt.xlabel('Powerflow' +  r'$F_l$' + ' [GW]')
-                plt.ylabel(r'$P(F_l | h)$')
-                if 'lin' in fc.solvermode:
-                    plt.ylim(0, 0.06)
+                plt.legend(prop={'size':10})
+                plt.title(r'$\alpha^W$ = ' + str(a))
+                plt.xlabel(r'$F_l$' + ' [GW]')
+                plt.ylabel(r'$p(F_l | h)$')
 
-        # loop for adjusting all the x-axis, to be equal
+        # loop for adjusting all the axis, to be equal
         for a in alphas:
             plt.subplot(subplotshape[0], subplotshape[1], alphas.index(a)+1)
             plt.xlim(minflow, maxflow)
+            if 'lin' in [fc.solvermode for fc in flowcalcs]:
+                plt.ylim(0, 0.04)
+            else:
+                plt.ylim(0, 0.024)
+        lines = [l[0] for l in lines]
+        #fig.legend(lines, labels, 'best')
         if samelayout:
-            fig.suptitle(''.join([link, ' (in ', fc.layout, '-grid)']),\
+            fig.suptitle(''.join([link, ' (in ', fc.pretty_layout(), ' layout)']),\
                          fontsize='20')
         else:
             fig.suptitle(link, fontsize='20')
@@ -675,7 +725,7 @@ def make_hourly_flowhists(flowcalcs, links='all', alphas=[0.0, 0.5, 0.9, 1.0],\
                                     figfileending, '.pdf'])
 
         if not interactive:
-            plt.savefig(savepath+figfilename)
+            plt.savefig(savepath+figfilename, bbox_inches='tight')
             plt.close()
 
     return
@@ -701,3 +751,276 @@ def get_link_number_in_layout(link, layout):
 
     print "Link not found"
     return
+
+
+def make_bal_vs_layout_barplot(flowcalcs, ydatalabel,\
+                    figfilename=None, savepath = './results/figures/', \
+                    datapath='./results/BalvsTrans/', interactive=False,
+                    barwidth=0.5, title=None):
+
+    plt.close()
+    plt.rcParams['axes.color_cycle'] = color_cycle
+
+    if type(flowcalcs)!=list:
+        flowcalcs = [flowcalcs]
+
+    if interactive:
+        plt.ion()
+
+    ydata = []
+    layoutlist = []
+    for fc in flowcalcs:
+        admat = "./settings/" + fc.layout + "admat.txt"
+        N = nh_Nodes(admat=admat)
+        total_mean_load = np.sum([n.mean for n in N])
+
+        filename = str(fc) + '.pkl'
+        unnormalized_data = [get_data(filename, ydatalabel, \
+                             path=datapath)[n.id] for n in N]
+        ydata.append(np.sum(unnormalized_data)/total_mean_load)
+        layoutlist.append(fc.pretty_layout())
+
+    index = np.arange(len(ydata))
+    left = index+0.5*barwidth
+    plt.ion()
+    ax = plt.subplot(1,1,1)
+    plt.bar(left, ydata, width=barwidth, color=blue)
+    plt.xticks(left + 0.5*barwidth, layoutlist)
+    if ydatalabel=='BE':
+        plt.ylabel('Balancing energy [normalized]')
+    elif ydatalabel=='BC':
+        plt.ylabel('Balancing capacity [normalized]')
+
+    if title:
+        plt.title(title)
+
+    if not figfilename:
+        figfilename = ydatalabel + '_vs_layout.pdf'
+
+    if not interactive:
+        plt.savefig(savepath+figfilename)
+
+    return
+
+
+def make_all_LCOE_vs_alpha_graphs():
+    modes = ['lin', 'lin_imp', 'sqr', 'sqr_imp']
+
+    layouts = ['EU_RU_NA_ME', 'eurasia', 'US_eurasia_open', \
+           'US_eurasia_closed', 'US_EU_RU_NA_ME']
+
+    for m in modes:
+        for l in layouts:
+            fc = FlowCalculation(l, 'aHO1.0',  'copper', m)
+            make_LCOE_vs_alpha_graph(fc, savepath='./results/figures/LCOEvsAlpha/')
+
+    return
+
+def make_LCOE_vs_alpha_graph(masterflowcalc, alphas=np.linspace(0,1,21), \
+                          figfilename=None, savepath='./results/figures/', \
+                          datapath='./results/AlphaSweepsCopper/', \
+                          interactive=False, CFw=0.35, CFs=0.15, title=True):
+    plt.close()
+    if interactive:
+        plt.ion()
+
+    total_energy = ct.total_annual_energy_consumption(masterflowcalc)
+    admat = './settings/' + masterflowcalc.layout + 'admat.txt'
+    BE_LCOE = []
+    BC_LCOE = []
+    wind_LCOE = []
+    solar_LCOE = []
+    TC_LCOE = []
+    zerotrans_total_LCOE = []
+    zerotrans_datapath = './results/AlphaSweepsZerotrans/'
+
+    for a in alphas:
+        alphacode = ''.join(['aHO', str(a)])
+        fc = FlowCalculation(masterflowcalc.layout, alphacode, \
+                masterflowcalc.capacities, masterflowcalc.solvermode)
+        BE_LCOE.append(au.cbe(ct.total_annual_BE(fc, datapath))/total_energy)
+        BC_LCOE.append(au.cbc(ct.get_total_BC(fc, datapath))/total_energy)
+        wind_LCOE.append(au.cwc(ct.get_total_wind_capacity(fc, CFw, datapath))\
+                         /total_energy)
+        solar_LCOE.append(au.csc(\
+                                ct.get_total_solar_capacity(fc, CFs, datapath))\
+                         /total_energy)
+        TC_LCOE.append(au.ctc(ct.get_TCs(fc, datapath), pathadmat=admat)\
+                       /total_energy)
+        zerotrans_fc = FlowCalculation(masterflowcalc.layout, alphacode,\
+                                         'zerotrans', 'raw')
+        zerotrans_total_LCOE.append(
+                (au.cbe(ct.total_annual_BE(zerotrans_fc, zerotrans_datapath))
+         + au.cbc(ct.get_total_BC(zerotrans_fc, zerotrans_datapath))
+         + au.cwc(\
+           ct.get_total_wind_capacity(zerotrans_fc, CFw, zerotrans_datapath))
+         + au.csc(\
+           ct.get_total_solar_capacity(zerotrans_fc, CFs, zerotrans_datapath)))\
+           /total_energy)
+
+
+    plt.ion()
+    plt.fill_between(alphas,
+                     np.array(BE_LCOE) + np.array(BC_LCOE) + \
+                     np.array(solar_LCOE) + np.array(wind_LCOE) +\
+                     np.array(TC_LCOE), label='Backup energy', color=orange,
+                     edgecolor='k')
+    plt.fill_between(alphas,
+                     np.array(BC_LCOE) +
+                     np.array(solar_LCOE) + np.array(wind_LCOE) +
+                     np.array(TC_LCOE), label='Backup capacity', color=red,
+                     edgecolor='k')
+    plt.fill_between(alphas,
+                     np.array(solar_LCOE) + np.array(wind_LCOE) +
+                     np.array(TC_LCOE), label='Solar capacity', color=yellow,
+                     edgecolor='k')
+    plt.fill_between(alphas,
+                     np.array(wind_LCOE) +
+                     np.array(TC_LCOE), label='Wind capacity', color=blue,
+                     edgecolor='k')
+    plt.fill_between(alphas, np.array(TC_LCOE), label='Transmission capacity',\
+                      color=green, edgecolor='k')
+
+    plt.plot(alphas, zerotrans_total_LCOE, color=lightblue, lw=2, ls='--',\
+             label="Total LCOE, zero transmission")
+
+    colors = [orange, red, yellow, blue, green]
+    rectangles = [plt.Rectangle((0,0), 1, 1, fc=c) for c in colors]
+    plt.legend(rectangles, ['Backup energy', 'Backup capacity', \
+                            'Solar capacity', 'Wind capacity',\
+                            'Transmission capacity'])
+
+    plt.ylim(0,250)
+    plt.xlabel(r'$\alpha_W$')
+    plt.ylabel('LCOE [' + u'\u20AC' + '/MWh]')
+    if title:
+        plt.title(masterflowcalc.layout + ' ' + masterflowcalc.solvermode)
+
+
+    if not figfilename:
+        figfilename = ''.join([masterflowcalc.layout, '_', \
+                        masterflowcalc.solvermode, '_LCOEvsalpha', '.pdf'])
+
+    if not interactive:
+        plt.savefig(savepath+figfilename)
+        plt.close()
+
+def make_europeplus_barplot(ydatalabel, interactive=False,\
+        barwidth=0.5):
+    """ Creates a bar plot showing the property specified by
+        ydatalabel in the five different layouts in the Europeplus
+        configuration.
+
+        """
+
+    plt.close()
+    plt.rcParams['axes.color_cycle'] = color_cycle
+    if interactive:
+        plt.ion()
+    datapath = "./results/Europeplus/"
+    savepath = "./results/figures/Europeplusfigs/"
+    sqr_and_lin = False
+    if ydatalabel != 'BE':
+        sqr_and_lin = True
+
+    layoutlist = ['Europe',\
+                 'Europe-RU', 'Europe-NA', 'Europe-ME', 'Europe-RU-NA-ME']
+
+    ydata_lin = []
+    ydata_sqr = []
+    ydata_lin_ext = []
+    ydata_sqr_ext = []
+
+    for l in layoutlist:
+        layout = l.replace('-', '_')
+        fc_string_lin = str(FlowCalculation(layout, 'aHE', 'copper', 'lin'))
+        fc_string_sqr = str(FlowCalculation(layout, 'aHE', 'copper', 'sqr'))
+        admat = "./settings/" + layout + "admat.txt"
+        N = europe_plus_Nodes(admat=admat)
+        if layout=='Europe':
+            internal_links = [au.AtoKh(N)[-1][i][0] \
+                    for i in range(len(au.AtoKh(N)[-1]))]
+
+        total_mean_load = np.sum([n.mean for n in N])
+        if ydatalabel == 'BE':
+            unnormalized_data = get_data(fc_string_lin + '.pkl', \
+                                         ydatalabel, path=datapath)
+            ydata_lin.append(np.sum(unnormalized_data)/total_mean_load)
+            ylabel = "Backup energy [normalized]"
+        elif ydatalabel == 'BC':
+            unnormalized_data_lin = get_data(fc_string_lin + '.pkl',\
+                                             ydatalabel, path=datapath)
+            unnormalized_data_sqr = get_data(fc_string_sqr + '.pkl',\
+                                             ydatalabel, path=datapath)
+            ydata_lin.append(np.sum(unnormalized_data_lin)/total_mean_load)
+            ydata_sqr.append(np.sum(unnormalized_data_sqr)/total_mean_load)
+            ylabel = "Backup capacity [normalized]"
+        elif ydatalabel == 'TC':
+            internal_indices, external_indices =\
+                    get_internal_external_link_indices(N, internal_links)
+            print internal_indices, external_indices
+            all_lin_TC = au.biggestpair(\
+                    get_data(fc_string_lin + '.pkl', 'TC', path=datapath))
+            all_sqr_TC = au.biggestpair(\
+                    get_data(fc_string_sqr + '.pkl', 'TC', path=datapath))
+            ydata_lin.append(\
+                    sum([all_lin_TC[i] for i in internal_indices])/1e3)
+            ydata_lin_ext.append(\
+                    sum([all_lin_TC[i] for i in external_indices])/1e3)
+            ydata_sqr.append(\
+                    sum([all_sqr_TC[i] for i in internal_indices])/1e3)
+            ydata_sqr_ext.append(\
+                    sum([all_sqr_TC[i] for i in external_indices])/1e3)
+            ylabel = "Transmission capacity [GW]" ## note the unit, this was
+                                                  ## obtained by /1e3
+
+################# implement transmission capacity that only include internal european links######
+
+    index = np.array([0, 1.5, 2.5, 3.5, 5])
+    left = index + 0.5*barwidth
+    left2 = index + barwidth
+    ax = plt.subplot(1,1,1)
+
+    if ydatalabel=='BE':
+        plt.bar(left, ydata_lin, width=barwidth, color=blue)
+    elif ydatalabel=='BC':
+        plt.bar(left, ydata_lin, width=0.5*barwidth,\
+                color=blue, label = 'Localized flow')
+        plt.bar(left2, ydata_sqr, width=0.5*barwidth,\
+                color=red, label = 'Synchronized flow')
+        plt.legend()
+    elif ydatalabel=='TC':
+        plt.bar(left, np.array(ydata_lin)+np.array(ydata_lin_ext), \
+                width=0.5*barwidth, color=darkblue,\
+                label = 'External capacity: Localized flow')
+        plt.bar(left, np.array(ydata_lin), width=0.5*barwidth,\
+                color=blue, label = 'Internal capacity: Localized flow')
+        plt.bar(left2, np.array(ydata_sqr)+np.array(ydata_sqr_ext), \
+                width=0.5*barwidth, color=darkred,\
+                label = 'External capacity: Synchronized flow')
+        plt.bar(left2, np.array(ydata_sqr), width=0.5*barwidth,\
+                color=red, label = 'Internal capacity: Synchronized flow')
+        plt.legend(prop={'size':13}, loc=2)
+    plt.xticks(left + 0.5*barwidth, layoutlist)
+    plt.ylabel(ylabel)
+    plt.title('Copper flow')
+
+    figfilename = ydatalabel + "vslayout.pdf"
+    if not interactive:
+        plt.savefig(savepath + figfilename)
+
+def get_internal_external_link_indices(N, internal_links):
+    all_links = [au.AtoKh(N)[-1][i][0] for i in range(len(au.AtoKh(N)[-1]))]
+
+    internal_indices = []
+    external_indices = []
+    for link in all_links:
+        if link in internal_links:
+            internal_indices.append(all_links.index(link))
+        else:
+            external_indices.append(all_links.index(link))
+
+    return internal_indices, external_indices
+
+
+

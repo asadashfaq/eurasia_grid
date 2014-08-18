@@ -5,6 +5,7 @@ import multiprocessing as mp
 import aurespf.solvers as au
 from worldgrid import world_Nodes
 from nhgrid import nh_Nodes
+from europe_plusgrid import europe_plus_Nodes
 from FlowCalculation import FlowCalculation # my own class for passing info about calculations
 from FCResult import FCResult # my class for storing results in a space-efficient way
 
@@ -17,15 +18,19 @@ def solve_flow(flow_calc):
     if flow_calc.alphas=='aHE':
         if flow_calc.basisnetwork == 'w':
             nodes = world_Nodes(admat=admat)
-        if flow_calc.basisnetwork == 'nh':
+        elif flow_calc.basisnetwork == 'nh':
             nodes = nh_Nodes(admat=admat)
+        elif flow_calc.basisnetwork == 'europeplus':
+            nodes = europe_plus_Nodes(admat=admat)
         else:
             sys.stderr.write('The object has a basisnetwork that\
-                          is not accounted for. Use "w" or "nh".')
+                          is not accounted for. Use "w" or "nh" or "europeplus".')
     elif flow_calc.alphas.startswith('aHO'):
+        alpha = float(flow_calc.alphas[3:]) # expects alphas on the form aHO0.4
         if flow_calc.basisnetwork == 'nh':
-            alpha = float(flow_calc.alphas[3:]) # expects alphas on the form aHO0.4
             nodes = nh_Nodes(admat=admat, alphas=alpha)
+        elif flow_calc.basisnetwork == 'europeplus':
+            nodes = europe_plus_Nodes(admat=admat, alphas=alpha)
         else:
             sys.stderr.write('The object has a basisnetwork that\
                           is not accounted for. Use "nh".')

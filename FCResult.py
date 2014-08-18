@@ -66,26 +66,28 @@ class FCResult:
         if len(self.cache) > 0:
             print "Results saved to file: ", filename
 
-    def add_instance(self, N, F, FC=None):
+    def add_instance(self, N, F, FC):
 
         inst={}
         inst['alphas'] = [n.alpha for n in N]
         inst['gammas'] = [n.gamma for n in N]
         length_of_timeseries = len(N[0].balancing)
-        inst['BE'] = [np.sum(n.balancing)/\
-                          length_of_timeseries for n in N]
-        inst['BC'] = [au.get_q(n.balancing, 0.99) for n in N]
 
+                # save data, that requires a Flowcalculation object for specification
+        inst['FlowCalculation'] = FC
+
+        if FC.capacities!='zerotrans':
+            inst['BE'] = [np.sum(n.balancing)/\
+                              length_of_timeseries for n in N]
+            inst['BC'] = [au.get_q(n.balancing, 0.99) for n in N]
         # Save flow histograms of all the flow along the links
-        flow_histograms = []
-        for link in xrange(F.shape[0]):
-            flow, count = myhist(F[link], bins=200)
-            flow_histograms.append(np.array([flow, count]))
-        inst['flowhists'] = flow_histograms
+            flow_histograms = []
+            for link in xrange(F.shape[0]):
+                flow, count = myhist(F[link], bins=200)
+                flow_histograms.append(np.array([flow, count]))
+            inst['flowhists'] = flow_histograms
 
-        # save data, that requires a Flowcalculation object for specification
-        if FC:
-            inst['FlowCalculation'] = FC
+
 
             if FC.hourly_flowhist:
                 # flow histograms, of flow along the links, conditioned
@@ -110,6 +112,14 @@ class FCResult:
                 h0 = au.get_quant_caps(F=F)
                 inst['TC'] = h0
                 inst['Total_TC'] = np.sum(au.biggestpair(h0))
+        else: # that is if this is a zero transmission case
+            inst['Total_TC'] = 0
+            balancing_timeseries = []
+            for n in N:
+                balancing_timeseries.append(-au.get_negative(n.mismatch))
+            inst['BE'] = [np.sum(bal)/length_of_timeseries\
+                          for bal in balancing_timeseries]
+            inst['BC'] = [au.get_q(bal, 0.99) for bal in balancing_timeseries]
 
         self.cache.append(inst)
 

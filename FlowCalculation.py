@@ -41,6 +41,15 @@ class FlowCalculation:
         return FlowCalculation(self.layout, self.alphas, self.capacities,\
                                 self.solvermode)
 
+    def pretty_layout(self):
+        return self.layout.replace('_', '-').replace('eurasia', 'Eurasia')
+
+    def pretty_solvermode(self):
+        return self.solvermode.replace('lin', 'Localized flow')\
+                .replace('sqr', 'Synchronized flow')\
+                .replace('zerotrans', 'No transmission')\
+                .replace('_imp', ' with impedances')
+
     def label(self, variationparameter):
         """ Returns a string that can be used to label a curve
             in a histgram that plots with different values of
