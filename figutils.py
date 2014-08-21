@@ -816,6 +816,21 @@ def make_all_LCOE_vs_alpha_graphs():
 
     return
 
+def make_additional_LCOE_vs_alpha_graphs():
+    modes = ['lin', 'sqr']
+
+    layouts = ['EU_RU', 'EU_NA', 'EU_ME', \
+           'EU_RU_NA_MEstar']
+
+    for m in modes:
+        for l in layouts:
+            fc = FlowCalculation(l, 'aHO1.0',  'copper', m)
+            make_LCOE_vs_alpha_graph(fc, savepath='./results/figures/LCOEvsAlpha/')
+
+    return
+
+
+
 def make_LCOE_vs_alpha_graph(masterflowcalc, alphas=np.linspace(0,1,21), \
                           figfilename=None, savepath='./results/figures/', \
                           datapath='./results/AlphaSweepsCopper/', \
@@ -859,6 +874,7 @@ def make_LCOE_vs_alpha_graph(masterflowcalc, alphas=np.linspace(0,1,21), \
            /total_energy)
 
 
+    print TC_LCOE
     plt.ion()
     plt.fill_between(alphas,
                      np.array(BE_LCOE) + np.array(BC_LCOE) + \

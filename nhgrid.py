@@ -15,22 +15,19 @@ def nh_Nodes(admat=None, load_filename=None, full_load=False, alphas=None):
     if admat:
         if 'eurasia' in admat:
             regions.extend(['EU', 'RU', 'NA', 'ME', 'IN', 'SE', 'CN', 'JK'])
-        if 'EU_RU_NA_ME' in admat:
-            regions.extend(['EU', 'RU', 'NA', 'ME'])
-        if 'US' in admat:
-            regions.append('US')
+        for r in ['EU', 'RU', 'NA', 'ME', 'US']:
+            if r in admat:
+                regions.append(r)
     elif load_filename:
         if 'eurasia' in load_filename:
             regions.extend(['EU', 'RU', 'NA', 'ME', 'IN', 'SE', 'CN', 'JK'])
-        if 'EU_RU_NA_ME' in load_filename:
-            regions.extend(['EU', 'RU', 'NA', 'ME'])
-        if 'US' in load_filename:
-            regions.append('US')
+        for r in ['EU', 'RU', 'NA', 'ME', 'US']:
+            if r in load_filename:
+                regions.append(r)
     else:
         print("You must provide either an admat or a load_filename")
 
     files = [''.join([r,'.npz']) for r in regions]
-
     prefix='VE_'
 
     if alphas==None:
@@ -41,7 +38,6 @@ def nh_Nodes(admat=None, load_filename=None, full_load=False, alphas=None):
     if type(alphas)==float or type(alphas)==int:
         homogeneousalpha = alphas
         alphas = homogeneousalpha*np.ones(len(regions))
-
 
     return au.Nodes(admat=admat, path='./data/', prefix=prefix,
                     files=files, load_filename=load_filename,

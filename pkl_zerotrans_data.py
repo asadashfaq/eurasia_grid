@@ -4,7 +4,8 @@ from FCResult import FCResult
 from nhgrid import nh_Nodes
 
 layouts = ['EU_RU_NA_ME', 'eurasia', 'US_eurasia_open', \
-           'US_eurasia_closed', 'US_EU_RU_NA_ME']
+           'US_eurasia_closed', 'US_EU_RU_NA_ME', 'EU_RU',\
+           'EU_NA', 'EU_ME', 'EU_RU_NA_MEstar']
 alphas = np.linspace(0, 1, 21)
 savepath = './results/AlphaSweepsZerotrans/'
 
