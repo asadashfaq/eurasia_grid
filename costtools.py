@@ -25,35 +25,44 @@ def filename_from_flowcalc(flowcalc):
     return str(flowcalc) + '.pkl'
 
 
-def total_annual_BE(flowcalc, datapath='./results/AlphaSweepsCopper/'):
+def total_annual_BE(flowcalc, datapath='./results/AlphaSweepsCopper/', onlyEU=False):
     filename = filename_from_flowcalc(flowcalc)
+    if onlyEU:
+        return get_data(filename, 'BE', path=datapath)[0]\
+            *HOURS_PER_YEAR
     return np.sum(get_data(filename, 'BE', path=datapath))\
             *HOURS_PER_YEAR
 
 
-def get_total_BC(flowcalc, datapath='./results/AlphaSweepsCopper/'):
+def get_total_BC(flowcalc, datapath='./results/AlphaSweepsCopper/', onlyEU=False):
     filename = filename_from_flowcalc(flowcalc)
+    if onlyEU:
+        return get_data(filename, 'BC', path=datapath)[0]
     return np.sum(get_data(filename, 'BC', path=datapath))
 
 
 def get_total_wind_capacity(flowcalc, capacityfactor,
-        datapath='./results/AlphaSweepsCopper/'):
+        datapath='./results/AlphaSweepsCopper/', onlyEU=False):
     filename = filename_from_flowcalc(flowcalc)
     alphas = get_data(filename, 'alphas', path=datapath)
     gammas = get_data(filename, 'gammas', path=datapath)
     meanloads = np.load('./results/' + flowcalc.layout + '_meanloads.npy')
 
+    if onlyEU:
+        return gammas[0]*alphas[0]*meanloads[0]/capacityfactor
     return np.sum([gammas[i]*alphas[i]*meanloads[i]\
                    /capacityfactor for i in range(len(meanloads))])
 
 
 def get_total_solar_capacity(flowcalc, capacityfactor,
-        datapath='./results/AlphaSweepsCopper/'):
+        datapath='./results/AlphaSweepsCopper/', onlyEU=False):
     filename = filename_from_flowcalc(flowcalc)
     alphas = get_data(filename, 'alphas', path=datapath)
     gammas = get_data(filename, 'gammas', path=datapath)
     meanloads = np.load('./results/' + flowcalc.layout + '_meanloads.npy')
 
+    if onlyEU:
+        return gammas[0]*(1-alphas[0])*meanloads[0]/capacityfactor
     return np.sum([gammas[i]*(1-alphas[i])*meanloads[i]\
                    /capacityfactor for i in range(len(meanloads))])
 
@@ -63,9 +72,11 @@ def get_TCs(flowcalc, datapath='./results/AlphaSweepsCopper/'):
     h0 = get_data(filename, 'TC', path=datapath)
     return au.biggestpair(h0)
 
-def total_annual_energy_consumption(flowcalc, r=4.0):
+def total_annual_energy_consumption(flowcalc, r=4.0, onlyEU=False):
     admat = './settings/' + flowcalc.layout + 'admat.txt'
     N = nh_Nodes(admat=admat)
+    if onlyEU:
+        return N[0].mean*HOURS_PER_YEAR*au.ann(r)
     return np.sum([n.mean for n in N])*HOURS_PER_YEAR*au.ann(r)
 
 

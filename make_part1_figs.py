@@ -2,8 +2,8 @@ import figutils as fig
 from FlowCalculation import FlowCalculation
 
 savepath = './results/figures/FigsOfInterestJul10/'
+"""
 ########### This first section is for hour-dependent flowhistograms #########
-
 ## illustrate alphadepencence
 fig.make_hourly_flowhists(FlowCalculation('eurasia', 'aHO1', 'copper', 'sqr'),
                       links=['EU to ME', 'SE to CN'], hours=[0, 6, 12, 18],
@@ -30,7 +30,6 @@ fig.make_hourly_flowhists(
                       hours=[0, 12],
                       figfileending='impnoimp', savepath=savepath)
 
-"""
 
 ########### This second section is for BC, BE, TC vs alpha plots ############
 
@@ -41,10 +40,12 @@ fig.make_y_vs_alpha_graph(
              ydatalabel='BC', savepath=savepath,
              figfilename='eurasia_BC_vs_alpha_linsqr.pdf', zerotrans=True,
              title=False, small_legend=True,
-             labels=['No transmission', 'Localized flow', \
-                     'Localized flow: ' + r'$\alpha^W_{\mathrm{opt}}$',
-                     'Synchronized flow',\
-                     'Synchronized flow: ' + r'$\alpha^W_{\mathrm{opt}}$'])
+             labels=['No transmission',
+                     'No transmission: ' + r'$\alpha_{\mathrm{opt}}$',
+                     'Localized flow',
+                     'Localized flow: ' + r'$\alpha_{\mathrm{opt}}$',
+                     'Synchronized flow',
+                     'Synchronized flow: ' + r'$\alpha_{\mathrm{opt}}$'])
 
 ## Balancing capacity for all layouts
 layouts = ['EU_RU_NA_ME', 'US_EU_RU_NA_ME', 'eurasia', 'US_eurasia_open']
@@ -62,8 +63,10 @@ fig.make_y_vs_alpha_graph(
              FlowCalculation('eurasia', 'aHO1', 'copper', 'sqr'),
              ydatalabel='BE', savepath=savepath,
              figfilename='eurasia_BE_vs_alpha.pdf', zerotrans=True,
-             labels=['No transmission', 'Copper flow', 'Copper flow: '\
-                     + r'$\alpha^W_{\mathrm{opt}}$'],
+             labels=['No transmission', \
+                     'No transmission: ' + r'$\alpha_{\mathrm{opt}}$',\
+                     'Copper flow', 'Copper flow: '\
+                     + r'$\alpha_{\mathrm{opt}}$'],
              title=False, small_legend=False)
 
 ## Balancing energy for all layouts
@@ -82,9 +85,9 @@ fig.make_y_vs_alpha_graph(
              figfilename='eurasia_TC_vs_alpha_linsqr.pdf',
              title=False, small_legend=False,
              labels=['Localized flow', \
-                     'Localized flow: ' + r'$\alpha^W_{\mathrm{opt}}$',
+                     'Localized flow: ' + r'$\alpha_{\mathrm{opt}}$',
                      'Synchronized flow',\
-                     'Synchronized flow: ' + r'$\alpha^W_{\mathrm{opt}}$'])
+                     'Synchronized flow: ' + r'$\alpha_{\mathrm{opt}}$'])
 
 ## Transmission capacity open vs closed
 fig.make_y_vs_alpha_graph(
@@ -94,10 +97,9 @@ fig.make_y_vs_alpha_graph(
              figfilename='TC_vs_alpha_openclosed.pdf',
              small_legend=False,
              labels=['US-Eurasia-open',
-                    'US-Eurasia-open: ' + r'$\alpha^W_{\mathrm{opt}}$',
+                    'US-Eurasia-open: ' + r'$\alpha_{\mathrm{opt}}$',
                     'US-Eurasia-closed',
-                    'US-Eurasia-closed: ' + r'$\alpha^W_{\mathrm{opt}}$'])
-
+                    'US-Eurasia-closed: ' + r'$\alpha_{\mathrm{opt}}$'])
 
 ######### This section is for BC and BE vs TC graphs ######################
 ## Balancing capacity vs transmission capacity, lin vs sqr
@@ -129,8 +131,14 @@ fig.make_bal_vs_layout_barplot(
              FlowCalculation('US_eurasia_open', 'aHE', '1.5q99', 'sqr')],
              ydatalabel='BC', savepath=savepath,
              title='Synchronized copper flow')
-"""
 
 fig.make_LCOE_vs_alpha_graph(
         FlowCalculation('eurasia', 'aHO1', 'copper', 'lin'),
-        savepath=savepath, title=False)
+        savepath=savepath, title=True)
+
+fig.make_LCOE_vs_alpha_graph(
+        FlowCalculation('EU_RU_NA_ME', 'aHO1', 'copper', 'lin'),
+        savepath=savepath, title=True)
+"""
+## make histogram of aggregated mismatch in the five layouts
+fig.make_agg_mismatch_hist(savepath=savepath)

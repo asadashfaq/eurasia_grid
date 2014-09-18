@@ -6,6 +6,7 @@ import aurespf.solvers as au
 from nhgrid import nh_Nodes
 from europe_plusgrid import europe_plus_Nodes
 from FCResult import FCResult
+from FCResult import myhist
 from FlowCalculation import FlowCalculation
 import costtools as ct
 
@@ -249,9 +250,9 @@ def make_bal_vs_trans_graph(flowcalcs, ydatalabel, region='EU', \
 
     plt.xlabel('Total transmission capacity [TW]')
     if ydatalabel=='BE':
-        plt.ylabel('Balancing energy [normalized]')
+        plt.ylabel('Backup energy [normalized]')
     if ydatalabel=='BC':
-        plt.ylabel('Balancing capacity [normalized]')
+        plt.ylabel('Backup capacity [normalized]')
 
     if legend:
         plt.legend()
@@ -415,9 +416,12 @@ def make_y_vs_alpha_graph(flowcalcs, ydatalabel, alphas=np.linspace(0,1,21), \
     for fc in flowcalcs:
         admat = "./settings/" + fc.layout + "admat.txt"
         N = nh_Nodes(admat=admat)
+        total_mean_load = np.sum([n.mean for n in N])
 
 ####### Plot the zero transmission case ######################################
+        current_fc_is_zerotrans=False
         if zerotrans and ydatalabel!='Total_TC':
+            current_fc_is_zerotrans=True
             if (not samelayout) or flowcalcs.index(fc)==0:
                 zerotrans_ydata = []
                 for a in alphas:
@@ -433,6 +437,28 @@ def make_y_vs_alpha_graph(flowcalcs, ydatalabel, alphas=np.linspace(0,1,21), \
                 plt.plot(alphas, zerotrans_ydata, \
                         label=zerotrans_label)
 
+                if hetpoints:
+                    het_zerotrans_filename = \
+                            ''.join([str(FlowCalculation(fc.layout, 'aHE',\
+                                    'zerotrans', 'raw')), '.pkl'])
+
+                    avg_het_alpha = np.sum([n.mean*n.alpha for n in N])\
+                                /total_mean_load
+
+                    het_zerotrans_y_value = np.sum(\
+                            get_data(het_zerotrans_filename, ydatalabel, \
+                                    path=datapath))/total_mean_load
+                    if not labels:
+                        zerotrans_het_label = ''.join(\
+                                [fc.layout, ': No transmission:  ', \
+                                    r'$\alpha_{\mathrm{opt}}$'])
+                    else:
+                        zerotrans_het_label = labels[label_counter]
+                        label_counter += 1
+                    plt.plot(avg_het_alpha, het_zerotrans_y_value, 'x',
+                             markersize=8, label=zerotrans_het_label)
+
+
 ####### extract an plot data from homogenous alpha layout ####################
         filenames = []
         for a in alphas:
@@ -440,7 +466,6 @@ def make_y_vs_alpha_graph(flowcalcs, ydatalabel, alphas=np.linspace(0,1,21), \
             filenames.append(''.join([str(FlowCalculation(fc.layout,\
                          alphacode, fc.capacities, fc.solvermode)), '.pkl']))
 
-        total_mean_load = np.sum([n.mean for n in N])
         ydata = []
         for filename in filenames:
             if ydatalabel in ['BE', 'BC']:
@@ -486,6 +511,7 @@ def make_y_vs_alpha_graph(flowcalcs, ydatalabel, alphas=np.linspace(0,1,21), \
             avg_het_alpha = np.sum([n.mean*n.alpha for n in N])\
                                 /total_mean_load
             if ydatalabel in ['BE', 'BC']:
+
                 het_y_value = np.sum(get_data(het_filename, ydatalabel, \
                                     path=datapath))/total_mean_load
             elif ydatalabel == 'Total_TC':
@@ -493,22 +519,23 @@ def make_y_vs_alpha_graph(flowcalcs, ydatalabel, alphas=np.linspace(0,1,21), \
                         path=datapath)/1e6 # now in TW
 
             if not labels:
-                het_label = fc.layout + ' ' + r'$\alpha^W_{\mathrm{opt}}$' + ': ' \
+                het_label = fc.layout + ' ' + r'$\alpha_{\mathrm{opt}}$' + ': ' \
                             + fc.solvermode
             else:
                 het_label = labels[label_counter]
                 label_counter += 1
+
             plt.plot(avg_het_alpha, het_y_value, 'x', markersize=8, \
                     label=het_label)
 #### finish up the plot ####################################################
     if showminima:
         plt.text(0.1, 0, minimum_text)
-    plt.xlabel(r'$\alpha^W$')
+    plt.xlabel(r'$\alpha$')
 
     if ydatalabel=='BE':
-        plt.ylabel('Balancing energy [normalized]')
+        plt.ylabel('Backup energy [normalized]')
     elif ydatalabel=='BC':
-        plt.ylabel('Balancing capacity [normalized]')
+        plt.ylabel('Backup capacity [normalized]')
     elif ydatalabel=='Total_TC':
         plt.ylabel('Total transmission capacity [TW]')
 
@@ -696,9 +723,9 @@ def make_hourly_flowhists(flowcalcs, links='all', alphas=[0.0, 0.5, 0.9, 1.0],\
                         minflow = np.min(flow)/1e3
 
                 plt.legend(prop={'size':10})
-                plt.title(r'$\alpha^W$ = ' + str(a))
+                plt.title(r'$\alpha$ = ' + str(a))
                 plt.xlabel(r'$F_l$' + ' [GW]')
-                plt.ylabel(r'$p(F_l | h)$')
+                plt.ylabel(r'$p_l(F_l | h)$')
 
         # loop for adjusting all the axis, to be equal
         for a in alphas:
@@ -787,9 +814,9 @@ def make_bal_vs_layout_barplot(flowcalcs, ydatalabel,\
     plt.bar(left, ydata, width=barwidth, color=blue)
     plt.xticks(left + 0.5*barwidth, layoutlist)
     if ydatalabel=='BE':
-        plt.ylabel('Balancing energy [normalized]')
+        plt.ylabel('Backup energy [normalized]')
     elif ydatalabel=='BC':
-        plt.ylabel('Balancing capacity [normalized]')
+        plt.ylabel('Backup capacity [normalized]')
 
     if title:
         plt.title(title)
@@ -907,10 +934,10 @@ def make_LCOE_vs_alpha_graph(masterflowcalc, alphas=np.linspace(0,1,21), \
                             'Transmission capacity'])
 
     plt.ylim(0,250)
-    plt.xlabel(r'$\alpha_W$')
+    plt.xlabel(r'$\alpha$')
     plt.ylabel('LCOE [' + u'\u20AC' + '/MWh]')
     if title:
-        plt.title(masterflowcalc.layout + ' ' + masterflowcalc.solvermode)
+        plt.title(masterflowcalc.pretty_layout() + ': ' + masterflowcalc.pretty_solvermode())
 
 
     if not figfilename:
@@ -1038,5 +1065,32 @@ def get_internal_external_link_indices(N, internal_links):
 
     return internal_indices, external_indices
 
+
+def make_agg_mismatch_hist(savepath, interactive=False):
+    plt.close()
+    plt.rcParams['axes.color_cycle'] = color_cycle
+    if interactive:
+        plt.ion()
+
+    layouts = ['EU_RU_NA_ME', 'US_EU_RU_NA_ME', 'eurasia', 'US_eurasia_open']
+    labels = ['EU-RU-NA-ME', 'US-EU-RU-NA-ME', 'Eurasia', 'US-Eurasia-open']
+
+    bins = np.linspace(-1,1.6,200)
+    for layout in layouts:
+        admat = './settings/' + layout + 'admat.txt'
+        N = nh_Nodes(admat=admat)
+        total_mean_load = sum([n.mean for n in N])
+        mismatch = sum([n.mismatch for n in N])/total_mean_load
+        value, count = myhist(mismatch, bins=bins, normed=True)
+        plt.plot(value, count,\
+                label=labels[layouts.index(layout)], lw=2)
+
+    plt.legend()
+    plt.xlim((-1,1.6))
+    plt.xlabel('Aggregated mismatch [normalized]')
+    plt.ylabel('Probability density')
+    figfilename = 'agg_mismatch_hists.pdf'
+    if not interactive:
+        plt.savefig(savepath + figfilename)
 
 
