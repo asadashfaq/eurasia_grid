@@ -398,7 +398,11 @@ def make_y_vs_alpha_graph(flowcalcs, ydatalabel, alphas=np.linspace(0,1,21), \
 
     plt.close()
     plt.rc('lines', lw=2)
-    plt.rcParams['axes.color_cycle'] = color_cycle
+
+    local_color_cycle = [red, purple, green, \
+               lightblue, pink, darkred, yellow,
+               darkblue, grayblue, brown, blue, orange]
+    plt.rcParams['axes.color_cycle'] = local_color_cycle
 
     if type(flowcalcs)!=list:
         flowcalcs = [flowcalcs]
@@ -932,6 +936,99 @@ def make_LCOE_vs_alpha_graph(masterflowcalc, alphas=np.linspace(0,1,21), \
     plt.legend(rectangles, ['Backup energy', 'Backup capacity', \
                             'Solar capacity', 'Wind capacity',\
                             'Transmission capacity'])
+
+    plt.ylim(0,250)
+    plt.xlabel(r'$\alpha$')
+    plt.ylabel('LCOE [' + u'\u20AC' + '/MWh]')
+    if title:
+        plt.title(masterflowcalc.pretty_layout() + ': ' + masterflowcalc.pretty_solvermode())
+
+
+    if not figfilename:
+        figfilename = ''.join([masterflowcalc.layout, '_', \
+                        masterflowcalc.solvermode, '_LCOEvsalpha', '.pdf'])
+
+    if not interactive:
+        plt.savefig(savepath+figfilename)
+        plt.close()
+
+def make_LCOE_vs_alpha_graph_TContop(masterflowcalc, alphas=np.linspace(0,1,21), \
+                          figfilename=None, savepath='./results/figures/', \
+                          datapath='./results/AlphaSweepsCopper/', \
+                          interactive=False, CFw=0.35, CFs=0.15, title=True):
+    plt.close()
+    if interactive:
+        plt.ion()
+
+    total_energy = ct.total_annual_energy_consumption(masterflowcalc)
+    admat = './settings/' + masterflowcalc.layout + 'admat.txt'
+    BE_LCOE = []
+    BC_LCOE = []
+    wind_LCOE = []
+    solar_LCOE = []
+    TC_LCOE = []
+    zerotrans_total_LCOE = []
+    zerotrans_datapath = './results/AlphaSweepsZerotrans/'
+
+    for a in alphas:
+        alphacode = ''.join(['aHO', str(a)])
+        fc = FlowCalculation(masterflowcalc.layout, alphacode, \
+                masterflowcalc.capacities, masterflowcalc.solvermode)
+        BE_LCOE.append(au.cbe(ct.total_annual_BE(fc, datapath))/total_energy)
+        BC_LCOE.append(au.cbc(ct.get_total_BC(fc, datapath))/total_energy)
+        wind_LCOE.append(au.cwc(ct.get_total_wind_capacity(fc, CFw, datapath))\
+                         /total_energy)
+        solar_LCOE.append(au.csc(\
+                                ct.get_total_solar_capacity(fc, CFs, datapath))\
+                         /total_energy)
+        TC_LCOE.append(au.ctc(ct.get_TCs(fc, datapath), pathadmat=admat)\
+                       /total_energy)
+        zerotrans_fc = FlowCalculation(masterflowcalc.layout, alphacode,\
+                                         'zerotrans', 'raw')
+        zerotrans_total_LCOE.append(
+                (au.cbe(ct.total_annual_BE(zerotrans_fc, zerotrans_datapath))
+         + au.cbc(ct.get_total_BC(zerotrans_fc, zerotrans_datapath))
+         + au.cwc(\
+           ct.get_total_wind_capacity(zerotrans_fc, CFw, zerotrans_datapath))
+         + au.csc(\
+           ct.get_total_solar_capacity(zerotrans_fc, CFs, zerotrans_datapath)))\
+           /total_energy)
+
+
+    print TC_LCOE
+    plt.ion()
+    plt.fill_between(alphas,
+                     np.array(TC_LCOE) + np.array(BE_LCOE) +\
+                     np.array(BC_LCOE) + \
+                     np.array(solar_LCOE) + np.array(wind_LCOE),\
+                     label='Transmission capacity', color=green,
+                     edgecolor='k')
+    plt.fill_between(alphas,
+                     np.array(BE_LCOE) +\
+                     np.array(BC_LCOE) + \
+                     np.array(solar_LCOE) + np.array(wind_LCOE),\
+                     label='Backup energy', color=orange,
+                     edgecolor='k')
+    plt.fill_between(alphas,
+                     np.array(BC_LCOE) + \
+                     np.array(solar_LCOE) + np.array(wind_LCOE),\
+                     label='Backup capacity', color=red,
+                     edgecolor='k')
+    plt.fill_between(alphas,
+                     np.array(solar_LCOE) + np.array(wind_LCOE),\
+                     label='Solar capacity', color=yellow,
+                     edgecolor='k')
+    plt.fill_between(alphas, np.array(wind_LCOE), label='Wind capacity',\
+                      color=blue, edgecolor='k')
+
+    plt.plot(alphas, zerotrans_total_LCOE, color=lightblue, lw=2, ls='--',\
+             label="Total LCOE, zero transmission")
+
+    colors = [green, orange, red, yellow, blue]
+    rectangles = [plt.Rectangle((0,0), 1, 1, fc=c) for c in colors]
+    plt.legend(rectangles, ['Transmission capacity', 'Backup energy',\
+                            'Backup capacity', \
+                            'Solar capacity', 'Wind capacity'])
 
     plt.ylim(0,250)
     plt.xlabel(r'$\alpha$')
