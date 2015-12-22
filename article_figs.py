@@ -13,6 +13,11 @@ import costtools as ct
 
 savepath = './results/figures/Articlefigs/'
 
+green1 = '#7bed08'
+green2 = '#5eb406'
+green3 = '#407b04'
+green4 = '#234202'
+
 def make_mismatchfig(interactive=True):
 
 
@@ -89,7 +94,9 @@ def make_vs_layout_barplot(interactive=True):
 
     BE = []
     BC = []
+    BC_sqr = []
     TC = []
+    TC_sqr = []
 
     layouts = ['EU_RU_NA_ME', 'US_EU_RU_NA_ME', 'eurasia', 'US_eurasia_closed']
     flowcalcs = [FlowCalculation(layout, 'aHE', '1.5q99', 'lin')\
@@ -102,9 +109,11 @@ def make_vs_layout_barplot(interactive=True):
     BE.append(EU_BE)
     EU_BC = au.get_q(EU_bal, 0.99)/EU.mean
     BC.append(EU_BC)
-    TC.append(0.01)
+    TC.append(1e-8)
+    TC_sqr.append(1e-8)
 
     for fc in flowcalcs:
+        fc_sqr = FlowCalculation(fc.layout, 'aHE', '1.5q99', 'sqr')
         print fc.layout
         admat = "./settings/" + fc.layout + "admat.txt"
         N = nh_Nodes(admat=admat)
@@ -112,49 +121,70 @@ def make_vs_layout_barplot(interactive=True):
         print total_mean_load
 
         filename = str(fc) + '.pkl'
+        filename_sqr = str(fc_sqr) + '.pkl'
         flowfilename = './results/' + fc.layout + '_aHE_copper_lin_flows.npy'
+        flowfilename_sqr = './results/' + fc.layout + '_aHE_copper_sqr_flows.npy'
         unnormalized_BE = [fig.get_data(filename, 'BE', \
                              path=datapath)[n.id] for n in N]
         unnormalized_BC = [fig.get_data(filename, 'BC', \
                              path=datapath)[n.id] for n in N]
+        unnormalized_BC_sqr = [fig.get_data(filename_sqr, 'BC', \
+                             path=datapath)[n.id] for n in N]
         BE.append(np.sum(unnormalized_BE)/total_mean_load)
         BC.append(np.sum(unnormalized_BC)/total_mean_load)
+        BC_sqr.append(np.sum(unnormalized_BC_sqr)/total_mean_load)
         LI = au.linfo(admat)
         energywiseTC = au.biggestpair(au.get_quant_caps(filename=flowfilename))
+        energywiseTC_sqr = au.biggestpair(au.get_quant_caps(filename=flowfilename_sqr))
         print np.sum(energywiseTC)
         TC.append(np.sum([energywiseTC[i]*float(LI[i][2]) \
-                            for i in range(len(LI))])/total_mean_load)
-
+                            for i in range(len(LI))])/(1e3*total_mean_load))
+        TC_sqr.append(np.sum([energywiseTC_sqr[i]*float(LI[i][2]) \
+                            for i in range(len(LI))])/(1e3*total_mean_load))
         print TC
     index1 = np.arange(len(BE))
     left = index1 + 0.5*barwidth
+    left2 = left + 0.5*barwidth
     plt.ion()
     ax1 = plt.subplot(3,1,1)
-    plt.gcf().set_size_inches([7.5,12])
-    plt.gcf().set_dpi(400)
-    ax1.bar(left, BE, width=barwidth, color=fig.orange)
+    if not interactive:
+        plt.gcf().set_size_inches([7.5,12])
+        plt.gcf().set_dpi(400)
+    ax1.bar(left, BE, width=barwidth, color=fig.orange,\
+                label='Localized/synchronized flow')
     layoutlist1 = ['EU', 'EU-RU-NA-ME', 'US-EU-RU-NA-ME', 'Eurasia', 'US-Eurasia']
     ax1.set_xticks(left + 0.5*barwidth)
     ax1.set_xticklabels(layoutlist1)
     ax1.set_ylabel('Backup energy [normalized]')#r'$E_\mathrm{total}^B$' + ' [normalized]')
     ax1.set_ylim((0,0.2))
-    ax1.text(0.1*barwidth, 0.17, '(a)',fontdict={'fontsize':20})
+    ax1.text(0.1*barwidth, 0.182, '(a)',fontdict={'fontsize':20})
+    ax1.legend()
 
     ax2 = plt.subplot(3,1,2)
-    ax2.bar(left, BC, width=barwidth, color=fig.red)
+    ax2.bar(left[0], BC[0], width=barwidth, color=fig.red)
+    ax2.bar(left[1:], BC[1:], width=0.5*barwidth, color=fig.red,\
+            label='Localized flow')
+    ax2.bar(left2[1:], BC_sqr, width=0.5*barwidth, color=fig.darkred,\
+            label='Synchronized flow')
     ax2.set_xticks(left + 0.5*barwidth)
     ax2.set_xticklabels(layoutlist1)
     ax2.set_ylabel('Backup capacity [normalized]')#r'$C_\mathrm{total}^B$'+ ' [normalized]')
-    ax2.set_ylim((0.5, 0.8))
+    ax2.set_ylim((0.0, 0.82))
     ax2.text(0.1*barwidth, 0.748, '(b)',fontdict={'fontsize':20})
+    ax2.legend(ncol=2)
 
     layoutlist2 = ['', 'EU-RU-NA-ME', 'US-EU-RU-NA-ME', 'Eurasia', 'US-Eurasia']
     ax3 = plt.subplot(3,1,3)
-    ax3.bar(left, TC, width=barwidth, color=fig.green)
+    ax3.bar(left, TC, width=0.5*barwidth, color=fig.green, \
+             label = 'Localized flow')
+    ax3.bar(left2, TC_sqr, width=0.5*barwidth, color=green4,
+             label = 'Synchronized flow')
     ax3.set_xticks(left + 0.5*barwidth)
     ax3.set_xticklabels(layoutlist2)
-    ax3.set_ylabel('Transmission capacity [km]')#r'$C_\mathrm{total}^T$' + ' [km]')
-    ax3.text(0.1*barwidth, 3370, '(c)',fontdict={'fontsize':20})
+    ax3.set_ylabel('Transmission capacity\n [normalized'\
+            + r'$\times$' + '1000 km]')#r'$C_\mathrm{total}^T$' + ' [km]')
+    ax3.text(0.1*barwidth, 5.46, '(c)',fontdict={'fontsize':20})
+    ax3.legend(ncol=2)
 
     plt.tight_layout()
 
@@ -164,8 +194,7 @@ def make_vs_layout_barplot(interactive=True):
         plt.savefig(savepath+figfilename)
 
 
-def make_LCOE_barplot(interactive=True):
-    plt.close()
+def make_LCOE_barplot(interactive=True, solvermode='lin', ax=None):
     if interactive:
         plt.ion()
 
@@ -178,6 +207,9 @@ def make_LCOE_barplot(interactive=True):
     LCOE3 = []
     LCOE4 = []
     LCOE5 = []
+    LCOE050 = []
+    LCOE025 = []
+    LCOE015 = []
 
     # find LCOE for EU isolated
     zerotrans_fc = FlowCalculation('eurasia', 'aHE', 'zerotrans', 'raw')
@@ -191,14 +223,17 @@ def make_LCOE_barplot(interactive=True):
     EU_solar_LCOE = au.csc(ct.get_total_solar_capacity(zerotrans_fc, CFs, datapath, onlyEU=True))\
                          /total_EU_energy
 
-    total_LCOE.append(sum([EU_BE_LCOE, EU_BC_LCOE, EU_wind_LCOE, EU_solar_LCOE]))
-    LCOE2.append(sum([EU_BC_LCOE, EU_wind_LCOE, EU_solar_LCOE]))
-    LCOE3.append(sum([EU_wind_LCOE, EU_solar_LCOE]))
-    LCOE4.append(sum([EU_wind_LCOE]))
-    LCOE5.append(0)
+    total_LCOE.append(0)
+    LCOE2.append(sum([EU_BE_LCOE, EU_BC_LCOE, EU_wind_LCOE, EU_solar_LCOE]))
+    LCOE3.append(sum([EU_BC_LCOE, EU_wind_LCOE, EU_solar_LCOE]))
+    LCOE4.append(sum([EU_wind_LCOE, EU_solar_LCOE]))
+    LCOE5.append(sum([EU_wind_LCOE]))
+    LCOE050.append(0)
+    LCOE025.append(0)
+    LCOE015.append(0)
 
 
-    fclist = [FlowCalculation(l, 'aHE', 'copper', 'lin') for l in layouts]
+    fclist = [FlowCalculation(l, 'aHE', 'copper', solvermode) for l in layouts]
     for fc in fclist:
 
         admat = './settings/' + fc.layout + 'admat.txt'
@@ -210,36 +245,69 @@ def make_LCOE_barplot(interactive=True):
                          /total_energy
         solar_LCOE = au.csc(ct.get_total_solar_capacity(fc, CFs, datapath))\
                          /total_energy
-        TC_LCOE = au.ctc(ct.get_TCs(fc, datapath), pathadmat=admat)\
-                       /total_energy
-        total_LCOE.append(sum([BE_LCOE, BC_LCOE, wind_LCOE, solar_LCOE, TC_LCOE]))
-        LCOE2.append(sum([BC_LCOE, wind_LCOE, solar_LCOE, TC_LCOE]))
-        LCOE3.append(sum([wind_LCOE, solar_LCOE, TC_LCOE]))
-        LCOE4.append(sum([wind_LCOE, TC_LCOE]))
-        LCOE5.append(sum([TC_LCOE]))
+        TC_LCOE = au.ctc(ct.get_TCs(fc, datapath), pathadmat=admat,\
+                scale_factor=1)/total_energy
+        TC_LCOE50 = au.ctc(ct.get_TCs(fc, datapath), pathadmat=admat,\
+                scale_factor=0.5)/total_energy
+        TC_LCOE25 = au.ctc(ct.get_TCs(fc, datapath), pathadmat=admat,\
+                scale_factor=0.25)/total_energy
+        TC_LCOE15 = au.ctc(ct.get_TCs(fc, datapath), pathadmat=admat,\
+                scale_factor=0.15)/total_energy
+
+##################### Make TC_LCOE75 etc variablse
+        total_LCOE.append(sum([TC_LCOE, BE_LCOE, BC_LCOE, wind_LCOE, solar_LCOE]))
+        LCOE050.append(sum([TC_LCOE50, BE_LCOE, BC_LCOE, wind_LCOE, solar_LCOE]))
+        LCOE025.append(sum([TC_LCOE25, BE_LCOE, BC_LCOE, wind_LCOE, solar_LCOE]))
+        LCOE015.append(sum([TC_LCOE15, BE_LCOE, BC_LCOE, wind_LCOE, solar_LCOE]))
+        LCOE2.append(sum([BE_LCOE, BC_LCOE, wind_LCOE, solar_LCOE]))
+        LCOE3.append(sum([BC_LCOE, wind_LCOE, solar_LCOE]))
+        LCOE4.append(sum([wind_LCOE, solar_LCOE]))
+        LCOE5.append(sum([wind_LCOE]))
+        #LCOE2.append(sum([BC_LCOE, wind_LCOE, solar_LCOE, TC_LCOE]))
+        #LCOE3.append(sum([wind_LCOE, solar_LCOE, TC_LCOE]))
+        #LCOE4.append(sum([wind_LCOE, TC_LCOE]))
+        #LCOE5.append(sum([TC_LCOE]))
 
 
         print total_LCOE
 
     barwidth = 0.5
-    ax = plt.subplot(1,1,1)
+    if ax==None:
+        ax = plt.subplot(1,1,1)
     index = np.arange(len(total_LCOE))
     left = index + 0.5*barwidth
-    ax.bar(left, total_LCOE, width=barwidth, color=fig.orange, label='Backup energy')
-    ax.bar(left, LCOE2, width=barwidth, color=fig.red, label='Backup capacity')
-    ax.bar(left, LCOE3, width=barwidth, color=fig.yellow, label='Solar capacity')
-    ax.bar(left, LCOE4, width=barwidth, color=fig.blue, label='Wind capacity')
-    ax.bar(left, LCOE5, width=barwidth, color=fig.green, label='Transmission capacity')
+    ax.bar(left, total_LCOE, width=barwidth, color=green1, label='Transmission capacity')
+    ax.bar(left, LCOE050, width=barwidth, color=green2)
+    ax.bar(left, LCOE025, width=barwidth, color=green3)
+    ax.bar(left, LCOE015, width=barwidth, color=green4)
+    ax.bar(left, LCOE2, width=barwidth, color=fig.orange, label='Backup energy')
+    ax.bar(left, LCOE3, width=barwidth, color=fig.red, label='Backup capacity')
+    ax.bar(left, LCOE4, width=barwidth, color=fig.yellow, label='Solar capacity')
+    ax.bar(left, LCOE5, width=barwidth, color=fig.blue, label='Wind capacity')
+
     ax.set_xticks(left + 0.5*barwidth)
     layoutlist = ['EU', 'EU-RU-NA-ME', 'US-EU-RU-NA-ME', 'Eurasia', 'US-Eurasia']
     ax.set_xticklabels(layoutlist)
     ax.set_ylabel('LCOE [' + u'\u20AC' + '/MWh]')
     ax.legend(loc=2, prop={'size':12})
-    plt.tight_layout()
+    ax.set_ylim(0,100)
 
     if not interactive:
+        plt.tight_layout()
         figfilename = 'LCOEvslayout.pdf'
         plt.savefig(savepath+figfilename)
+
+def LCOE_vs_layout_double():
+    plt.figure(figsize=(8,12))
+    ax1 = plt.subplot(2,1,1)
+    make_LCOE_barplot(solvermode='lin', ax=ax1)
+    ax1.text(1.85,92, 'a) Localized flow', size=14)
+    ax2 = plt.subplot(2,1,2)
+    make_LCOE_barplot(solvermode='sqr', ax=ax2)
+    ax2.text(1.85,92, 'b) Synchronized flow', size=14)
+    plt.tight_layout()
+    plt.savefig(savepath + 'LCOE_vs_layout_double.pdf')
+
 
 
 def LCOE_vs_alpha(interactive=True):
@@ -260,6 +328,9 @@ def LCOE_vs_alpha(interactive=True):
     wind_LCOE = []
     solar_LCOE = []
     TC_LCOE = []
+    TC050_LCOE = []
+    TC025_LCOE = []
+    TC015_LCOE = []
     zerotrans_total_LCOE = []
     zerotrans_datapath = './results/AlphaSweepsZerotrans/'
     EU_BE_LCOE = []
@@ -283,6 +354,12 @@ def LCOE_vs_alpha(interactive=True):
                          /total_energy)
         TC_LCOE.append(au.ctc(ct.get_TCs(fc, datapath), pathadmat=admat)\
                        /total_energy)
+        TC050_LCOE.append(au.ctc(ct.get_TCs(fc, datapath), pathadmat=admat,\
+                scale_factor=0.5)/total_energy)
+        TC025_LCOE.append(au.ctc(ct.get_TCs(fc, datapath), pathadmat=admat,\
+                scale_factor=0.25)/total_energy)
+        TC015_LCOE.append(au.ctc(ct.get_TCs(fc, datapath), pathadmat=admat,\
+                scale_factor=0.15)/total_energy)
         zerotrans_fc = FlowCalculation(masterflowcalc.layout, alphacode,\
                                          'zerotrans', 'raw')
         zerotrans_total_LCOE.append(
@@ -310,8 +387,9 @@ def LCOE_vs_alpha(interactive=True):
 
     plt.ion()
     ax1 = plt.subplot(2,1,1)
-    plt.gcf().set_size_inches([7.5,12])
-    plt.gcf().set_dpi(400)
+    if not interactive:
+        plt.gcf().set_size_inches([7.5,12])
+        plt.gcf().set_dpi(400)
     ax2 = plt.subplot(2,1,2)
     ax1.fill_between(alphas,
                      np.array(EU_BE_LCOE) + np.array(EU_BC_LCOE) + \
@@ -331,36 +409,59 @@ def LCOE_vs_alpha(interactive=True):
                      label='Wind capacity', color=fig.blue,
                      edgecolor='k')
 
+    ax2.fill_between(alphas,
+                     np.array(TC_LCOE) + np.array(BE_LCOE) +\
+                     np.array(BC_LCOE) + \
+                     np.array(solar_LCOE) + np.array(wind_LCOE),\
+                     label='Transmission capacity', color=green1,
+                     edgecolor='k')
+    ax2.fill_between(alphas,
+                     np.array(TC050_LCOE) + np.array(BE_LCOE) +\
+                     np.array(BC_LCOE) + \
+                     np.array(solar_LCOE) + np.array(wind_LCOE),\
+                     color=green2,
+                     edgecolor='k')
+    ax2.fill_between(alphas,
+                     np.array(TC025_LCOE) + np.array(BE_LCOE) +\
+                     np.array(BC_LCOE) + \
+                     np.array(solar_LCOE) + np.array(wind_LCOE),\
+                     color=green3,
+                     edgecolor='k')
+    ax2.fill_between(alphas,
+                     np.array(TC015_LCOE) + np.array(BE_LCOE) +\
+                     np.array(BC_LCOE) + \
+                     np.array(solar_LCOE) + np.array(wind_LCOE),\
+                     color=green4,
+                     edgecolor='k')
 
     ax2.fill_between(alphas,
                      np.array(BE_LCOE) + np.array(BC_LCOE) + \
-                     np.array(solar_LCOE) + np.array(wind_LCOE) +\
-                     np.array(TC_LCOE), label='Backup energy', color=fig.orange,
+                     np.array(solar_LCOE) + np.array(wind_LCOE),\
+                     label='Backup energy', color=fig.orange,
                      edgecolor='k')
     ax2.fill_between(alphas,
                      np.array(BC_LCOE) +
-                     np.array(solar_LCOE) + np.array(wind_LCOE) +
-                     np.array(TC_LCOE), label='Backup capacity', color=fig.red,
+                     np.array(solar_LCOE) + np.array(wind_LCOE),\
+                     label='Backup capacity', color=fig.red,
                      edgecolor='k')
     ax2.fill_between(alphas,
-                     np.array(solar_LCOE) + np.array(wind_LCOE) +
-                     np.array(TC_LCOE), label='Solar capacity', color=fig.yellow,
+                     np.array(solar_LCOE) + np.array(wind_LCOE),
+                     label='Solar capacity', color=fig.yellow,
                      edgecolor='k')
     ax2.fill_between(alphas,
-                     np.array(wind_LCOE) +
-                     np.array(TC_LCOE), label='Wind capacity', color=fig.blue,
+                     np.array(wind_LCOE),
+                     label='Wind capacity', color=fig.blue,
                      edgecolor='k')
-    ax2.fill_between(alphas, np.array(TC_LCOE), label='Transmission capacity',\
-                      color=fig.green, edgecolor='k')
 
     ax2.plot(alphas, zerotrans_total_LCOE, color='w', lw=2, ls='--',\
              label="Total LCOE, zero transmission")
 
-    colors = [fig.orange, fig.red, fig.yellow, fig.blue, fig.green]
+    colors = [green1, fig.orange, fig.red, fig.yellow, fig.blue]
     rectangles = [plt.Rectangle((0,0), 1, 1, fc=c) for c in colors]
-    ax1.legend(rectangles, ['Backup energy', 'Backup capacity', \
-                            'Solar capacity', 'Wind capacity',\
-                            'Transmission capacity'])#, prop={'size':12})
+    ax1.legend(rectangles, ['Transmission capacity', 'Backup energy',\
+                             'Backup capacity', \
+                            'Solar capacity', 'Wind capacity'])
+
 
     ax1.set_ylim(0,200)
     ax1.set_xlabel('Wind/solar mix')
@@ -368,8 +469,8 @@ def LCOE_vs_alpha(interactive=True):
     ax2.set_ylim(0,200)
     ax2.set_xlabel('Wind/solar mix')
     ax2.set_ylabel('LCOE [' + u'\u20AC' + '/MWh]')
-    ax1.text(0.04, 185, '(a)', fontdict={'fontsize':20})
-    ax2.text(0.04, 185, '(b)', fontdict={'fontsize':20})
+    ax1.text(0.04, 185, '(a) EU isolated', fontdict={'fontsize':20})
+    ax2.text(0.04, 185, '(b) US-Eurasia', fontdict={'fontsize':20})
     plt.tight_layout()
 
     if not interactive:
